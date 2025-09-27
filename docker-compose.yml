@@ -1,0 +1,68 @@
+version: '3.8'
+
+services:
+  # MongoDB Database
+  mongodb:
+    image: mongo:7
+    container_name: stellarburn-mongo
+    restart: unless-stopped
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: stellarburn
+      MONGO_INITDB_ROOT_PASSWORD: stellarburn_dev
+      MONGO_INITDB_DATABASE: stellarburn
+    ports:
+      - "27017:27017"
+    volumes:
+      - ./data/mongodb:/data/db
+      - ./docker/mongo-init.js:/docker-entrypoint-initdb.d/mongo-init.js:ro
+    networks:
+      - stellarburn-network
+
+  # Node.js Development Environment
+  api:
+    build:
+      context: .
+      dockerfile: docker/node/Dockerfile
+    container_name: stellarburn-api
+    restart: unless-stopped
+    environment:
+      NODE_ENV: development
+      MONGODB_URI: mongodb://stellarburn:stellarburn_dev@mongodb:27017/stellarburn
+    ports:
+      - "3000:3000"  # API server
+      - "9229:9229"  # Node debugger
+    volumes:
+      - .:/app
+      - /app/node_modules  # Prevent host node_modules from overriding container
+    depends_on:
+      - mongodb
+    networks:
+      - stellarburn-network
+    command: npm run dev:api
+
+  # World Generator (CLI tool)
+  world-generator:
+    build:
+      context: .
+      dockerfile: docker/node/Dockerfile
+    container_name: stellarburn-generator
+    restart: "no"  # Only run when explicitly started
+    environment:
+      NODE_ENV: development
+      MONGODB_URI: mongodb://stellarburn:stellarburn_dev@mongodb:27017/stellarburn
+    volumes:
+      - .:/app
+      - /app/node_modules
+    depends_on:
+      - mongodb
+    networks:
+      - stellarburn-network
+    profiles:
+      - tools  # Only start with --profile tools
+
+networks:
+  stellarburn-network:
+    driver: bridge
+
+volumes:
+  mongodb_data:

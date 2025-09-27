@@ -1,0 +1,24 @@
+{
+  "name": "stellarburn",
+  "version": "1.0.0",
+  "private": true,
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "docker-compose up",
+    "dev:api": "npm run dev --workspace=packages/api",
+    "dev:generator": "npm run dev --workspace=packages/world-generator",
+    "build": "npm run build --workspaces",
+    "generate": "docker-compose run --rm world-generator npm run generate",
+    "db:up": "docker-compose up mongodb -d",
+    "db:down": "docker-compose down",
+    "clean": "docker-compose down -v && rm -rf packages/*/dist packages/*/node_modules node_modules"
+  },
+  "devDependencies": {
+    "typescript": "^5.0.0",
+    "@types/node": "^20.0.0",
+    "tsx": "^4.0.0",
+    "nodemon": "^3.0.0"
+  }
+}

@@ -1,0 +1,24 @@
+{
+  "name": "@stellarburn/world-generator",
+  "version": "1.0.0",
+  "type": "module",
+  "main": "./dist/index.js",
+  "bin": {
+    "stellarburn-generate": "./dist/cli.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsx src/cli.ts",
+    "generate": "npm run build && node dist/cli.js"
+  },
+  "dependencies": {
+    "@stellarburn/shared": "*",
+    "commander": "^11.0.0",
+    "mongodb": "^6.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "typescript": "^5.0.0",
+    "tsx": "^4.0.0"
+  }
+}
