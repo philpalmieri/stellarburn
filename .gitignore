@@ -1,0 +1,103 @@
+# -------------------- #
+# Monorepo and tool-specific files
+# -------------------- #
+# Ignore the common dependency directory for all packages
+**/node_modules/
+
+# Ignore lockfiles that should be managed by the root.
+# This prevents individual projects from creating their own lockfiles.
+**/package-lock.json
+**/yarn.lock
+**/pnpm-lock.yaml
+
+# Configuration and cache files from monorepo tools
+.turbo/
+.nx/
+lerna-debug.log
+
+# -------------------- #
+# Application environment files
+# -------------------- #
+# Securely ignore all .env files across the entire monorepo.
+# Critical credentials or API keys should never be committed.
+# The `**/` prefix matches this pattern in any subdirectory.
+**/.env
+**/.env.*
+**/.env.local
+**/.env.development.local
+**/.env.test.local
+**/.env.production.local
+
+# Recommend keeping a template file, like .env.example, that is committed
+# so other developers know what environment variables are needed.
+# Uncomment this line if you use that convention.
+# !.env.example
+
+# -------------------- #
+# Node.js and dependencies
+# -------------------- #
+# Logs and cache
+npm-debug.log*
+.npm/
+.eslintcache
+.pnpm-store/
+
+# Generated declaration files
+# These are often re-created by the build process.
+*.tsbuildinfo
+.tsbuildinfo
+
+# -------------------- #
+# TypeScript and compilation
+# -------------------- #
+# Compiled JavaScript and sourcemaps
+# Using the `**/` prefix correctly ignores these in any project subdirectory.
+**/dist/
+**/build/
+**/out/
+**/lib/
+**/*.js.map
+
+# VS Code directory for workspace settings.
+# This may contain user-specific run/debug settings.
+.vscode/
+
+# -------------------- #
+# React and web
+# -------------------- #
+# Typical React build output folders
+# The `**/` is important for capturing these inside workspace packages.
+**/build
+**/dist
+**/coverage
+
+# Service worker cache
+**/sw.js
+
+# -------------------- #
+# OS and Editor-specific files
+# -------------------- #
+# Windows
+Thumbs.db
+ehthumbs.db
+
+# macOS
+.DS_Store
+
+# JetBrains IDEs (IntelliJ, WebStorm, etc.)
+.idea/
+
+# Visual Studio Code
+.vscode/
+
+# Vim editor
+*.swp
+*.swo
+*.swn
+
+# Emacs editor
+*~
+#*#
+
+# Linux
+*~
