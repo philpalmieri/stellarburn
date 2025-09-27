@@ -10,14 +10,17 @@ WORKDIR /app
 RUN addgroup -g 1001 -S nodejs
 RUN adduser -S nodejs -u 1001
 
-# Copy package files
+# Copy package files and workspace structure first (for better caching)
 COPY package*.json ./
-COPY packages/*/package.json ./packages/*/
+COPY packages/ ./packages/
 
-# Install dependencies
-RUN npm ci --only=development
+# Install all dependencies using exact lock file versions
+RUN npm ci
 
-# Change ownership to nodejs user
+# Copy the rest of the application
+COPY . .
+
+# Change ownership to nodejs user  
 RUN chown -R nodejs:nodejs /app
 USER nodejs
 

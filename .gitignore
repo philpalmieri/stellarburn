@@ -101,3 +101,26 @@ ehthumbs.db
 
 # Linux
 *~
+
+
+# -------------------- #
+# Docker and Database
+# -------------------- #
+# MongoDB data directory - contains database files
+data/
+
+# Docker volumes and temp files
+.dockerignore
+docker-compose.override.yml
+
+# Database dumps and backups
+*.sql
+*.dump
+*.backup
+
+# -------------------- #
+# StellarBurn specific
+# -------------------- #
+# Generated universe files (if we export them later)
+universe-*.json
+sector-data/

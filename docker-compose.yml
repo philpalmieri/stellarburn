@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   # MongoDB Database
   mongodb:
@@ -27,7 +25,7 @@ services:
     restart: unless-stopped
     environment:
       NODE_ENV: development
-      MONGODB_URI: mongodb://stellarburn:stellarburn_dev@mongodb:27017/stellarburn
+      MONGODB_URI: mongodb://stellarburn:stellarburn_dev@mongodb:27017/stellarburn?authSource=admin
     ports:
       - "3000:3000"  # API server
       - "9229:9229"  # Node debugger
@@ -49,7 +47,7 @@ services:
     restart: "no"  # Only run when explicitly started
     environment:
       NODE_ENV: development
-      MONGODB_URI: mongodb://stellarburn:stellarburn_dev@mongodb:27017/stellarburn
+      MONGODB_URI: mongodb://stellarburn:stellarburn_dev@mongodb:27017/stellarburn?authSource=admin
     volumes:
       - .:/app
       - /app/node_modules
@@ -59,7 +57,26 @@ services:
       - stellarburn-network
     profiles:
       - tools  # Only start with --profile tools
-
+# React Web UI
+  web-ui:
+    build:
+      context: .
+      dockerfile: docker/node/Dockerfile
+    container_name: stellarburn-web-ui
+    restart: unless-stopped
+    environment:
+      NODE_ENV: development
+    ports:
+      - "3001:3001"  # Web UI
+    volumes:
+      - .:/app
+      - /app/node_modules
+    depends_on:
+      - api
+    networks:
+      - stellarburn-network
+    command: npm run dev --workspace=packages/web-ui
+    
 networks:
   stellarburn-network:
     driver: bridge

@@ -1,4 +1,4 @@
-// Initialize MongoDB with collections and indexes
+// Switch to the stellarburn database
 db = db.getSiblingDB('stellarburn');
 
 // Create collections
@@ -22,4 +22,4 @@ db.sectors.createIndex({
 db.players.createIndex({ "playerId": 1 });
 db.players.createIndex({ "currentCoordinates": 1 });
 
-print("StellarBurn database initialized!");
+print("StellarBurn database initialized successfully!");
