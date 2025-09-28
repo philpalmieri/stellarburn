@@ -193,13 +193,31 @@ function generateStarSystem(coordinates: Coordinates3D, systemType: SystemType):
       z: generateSubCoordinate(coordinates.z)
     };
 
+    // Assign station class based on system type and randomness
+    const stationClasses: ('A' | 'B' | 'C' | 'D' | 'E')[] = ['A', 'B', 'C', 'D', 'E'];
+    const classWeights = systemType.name.includes('Solar') ? [0.3, 0.3, 0.2, 0.15, 0.05] :
+                        systemType.name.includes('Binary') ? [0.2, 0.25, 0.25, 0.2, 0.1] :
+                        [0.1, 0.2, 0.3, 0.25, 0.15]; // Default weights
+
+    const randomValue = Math.random();
+    let cumulativeWeight = 0;
+    let stationClass: 'A' | 'B' | 'C' | 'D' | 'E' = 'C';
+    for (let i = 0; i < stationClasses.length; i++) {
+      cumulativeWeight += classWeights[i];
+      if (randomValue < cumulativeWeight) {
+        stationClass = stationClasses[i];
+        break;
+      }
+    }
+
     stations.push({
       id: `${systemId}_station`,
       type: 'station',
       coordinates: stationCoord,
       size: 1,
-      name: `${systemType.name.split(' ')[0]} Station`,
-      resources: []
+      name: `${systemType.name.split(' ')[0]}-type Station`,
+      resources: [],
+      stationClass
     });
   }
 

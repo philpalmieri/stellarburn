@@ -30,6 +30,8 @@ export interface CelestialBody {
   size: number; // 0-1, percentage of zone occupied
   name: string;
   resources?: ResourceDeposit[];
+  stationClass?: 'A' | 'B' | 'C' | 'D' | 'E'; // For stations only
+  stationType?: 'trade' | 'military' | 'shipyard' | 'mining' | 'research'; // Future use
 }
 
 export interface ResourceDeposit {
@@ -71,11 +73,13 @@ export interface Player {
   ship: {
     fuel: number;
     maxFuel: number;
-    cargo: any[];
+    cargo: CargoItem[];
+    maxCargo: number; // Max cargo weight capacity
     probes: number;
     probeConfig: ProbeConfig;
   };
   credits: number;
+  dockedAt?: string; // Station ID if docked
   createdAt: Date;
   lastActivity: Date;
 }
@@ -176,4 +180,38 @@ export interface PlayerStatusResponse {
   credits: number;
   cargoCount: number;
   probes: number;
+  dockedAt?: string; // Station ID if docked
+}
+
+// Trade and Station types
+export interface TradeItem {
+  id: string;
+  name: string;
+  category: 'fuel' | 'minerals' | 'technology' | 'weapons' | 'goods' | 'contraband';
+  basePrice: number;
+  weight: number; // cargo space required
+  rarity: 'common' | 'uncommon' | 'rare' | 'legendary';
+}
+
+export interface StationInventory {
+  itemId: string;
+  quantity: number;
+  buyPrice: number;  // Price station buys at
+  sellPrice: number; // Price station sells at
+}
+
+export interface Station {
+  id: string;
+  name: string;
+  coordinates: Coordinates3D;
+  stationClass: 'A' | 'B' | 'C' | 'D' | 'E';
+  inventory: StationInventory[];
+  dockedShips: string[]; // Player IDs
+  credits: number; // Station's money for trading
+}
+
+export interface CargoItem {
+  itemId: string;
+  quantity: number;
+  purchasePrice: number; // What player paid
 }

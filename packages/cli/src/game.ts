@@ -260,3 +260,80 @@ export async function findNearest(playerId: string, entityType: string): Promise
     throw new Error(error.message || 'Network error during nearest search');
   }
 }
+
+// Station interaction functions
+export async function getNearbyStation(playerId: string): Promise<any> {
+  try {
+    const response = await fetch(`${API_BASE}/station/${playerId}/nearby`);
+
+    if (!response.ok) {
+      const error: any = await response.json();
+      throw new Error(error.error || `Failed to get nearby station (${response.status})`);
+    }
+
+    return await response.json();
+  } catch (error: any) {
+    if (error.code === 'ECONNREFUSED') {
+      throw new Error('Cannot connect to API server. Make sure the API is running.');
+    }
+    throw new Error(error.message || 'Network error during station query');
+  }
+}
+
+export async function dockAtStation(playerId: string): Promise<any> {
+  try {
+    const response = await fetch(`${API_BASE}/station/${playerId}/dock`, {
+      method: 'POST'
+    });
+
+    if (!response.ok) {
+      const error: any = await response.json();
+      throw new Error(error.error || `Failed to dock (${response.status})`);
+    }
+
+    return await response.json();
+  } catch (error: any) {
+    if (error.code === 'ECONNREFUSED') {
+      throw new Error('Cannot connect to API server. Make sure the API is running.');
+    }
+    throw new Error(error.message || 'Network error during docking');
+  }
+}
+
+export async function undockFromStation(playerId: string): Promise<any> {
+  try {
+    const response = await fetch(`${API_BASE}/station/${playerId}/undock`, {
+      method: 'POST'
+    });
+
+    if (!response.ok) {
+      const error: any = await response.json();
+      throw new Error(error.error || `Failed to undock (${response.status})`);
+    }
+
+    return await response.json();
+  } catch (error: any) {
+    if (error.code === 'ECONNREFUSED') {
+      throw new Error('Cannot connect to API server. Make sure the API is running.');
+    }
+    throw new Error(error.message || 'Network error during undocking');
+  }
+}
+
+export async function getStationInfo(playerId: string, stationId: string): Promise<any> {
+  try {
+    const response = await fetch(`${API_BASE}/station/${playerId}/info/${stationId}`);
+
+    if (!response.ok) {
+      const error: any = await response.json();
+      throw new Error(error.error || `Failed to get station info (${response.status})`);
+    }
+
+    return await response.json();
+  } catch (error: any) {
+    if (error.code === 'ECONNREFUSED') {
+      throw new Error('Cannot connect to API server. Make sure the API is running.');
+    }
+    throw new Error(error.message || 'Network error during station info query');
+  }
+}

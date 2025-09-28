@@ -2,7 +2,7 @@
 
 import { Command } from 'commander';
 import chalk from 'chalk';
-import { createPlayer, getPlayerStatus, movePlayer, scanArea, jumpPlayer, systemScan, plotCourse, autopilot, getKnownSystems, getAllKnownSystems, getSystemDetails, launchProbe, getActiveProbes, findNearest } from './game.js';
+import { createPlayer, getPlayerStatus, movePlayer, scanArea, jumpPlayer, systemScan, plotCourse, autopilot, getKnownSystems, getAllKnownSystems, getSystemDetails, launchProbe, getActiveProbes, findNearest, getNearbyStation, dockAtStation, undockFromStation, getStationInfo } from './game.js';
 
 // Reusable display functions for scan results
 function displayCurrentZone(zone: any) {
@@ -341,6 +341,27 @@ program
           await findNearestEntity(playerId, target);
           break;
 
+        // Station commands
+        case 'station':
+          if (!target) {
+            await showNearbyStation(playerId);
+          } else if (target === 'dock') {
+            await dockAtStationCommand(playerId);
+          } else if (target === 'undock') {
+            await undockFromStationCommand(playerId);
+          } else {
+            await showStationInfo(playerId, target);
+          }
+          break;
+
+        case 'dock':
+          await dockAtStationCommand(playerId);
+          break;
+
+        case 'undock':
+          await undockFromStationCommand(playerId);
+          break;
+
         default:
           console.log(chalk.red(`Unknown action: ${action}`));
           console.log(chalk.blue(`\nAvailable actions for ${playerId}:`));
@@ -357,6 +378,9 @@ program
           console.log(chalk.gray(`  jn,js,je,jw,ju,jd - Jump in direction`));
           console.log(chalk.gray(`  probe n          - Launch probe in direction (scans 10 systems)`));
           console.log(chalk.gray(`  probes           - Show active probes status`));
+          console.log(chalk.cyan(`  station          - Show nearby station info`));
+          console.log(chalk.cyan(`  dock             - Dock at nearby station`));
+          console.log(chalk.cyan(`  undock           - Undock from current station`));
           console.log(chalk.blue(`\nTip: Use quotes around coordinates like "1,2,3"`));
       }
     } catch (error: any) {
@@ -422,7 +446,7 @@ async function showKnownSystems(playerId: string) {
     console.log(chalk.blue(`=== Known Systems Database ===`));
     console.log(chalk.yellow(`Total Known: ${result.totalKnownSystems} systems`));
     console.log(chalk.yellow(`With Objects: ${result.systemsWithObjects} systems`));
-    console.log(chalk.gray(`Player Location: ${result.player.x},${result.player.y},${result.player.z}`));
+    console.log(chalk.gray(`Player Location: ${result.player.x.toFixed(1)},${result.player.y.toFixed(1)},${result.player.z.toFixed(1)}`));
 
     if (result.systems.length === 0) {
       console.log(chalk.gray(`No systems with objects discovered yet.`));
@@ -471,7 +495,7 @@ async function showAllKnownSystems(playerId: string) {
     const result = await getAllKnownSystems(playerId) as any;
     console.log(chalk.blue(`=== Complete Known Systems Database (sorted by distance) ===`));
     console.log(chalk.yellow(`Total Systems: ${result.totalKnownSystems}`));
-    console.log(chalk.gray(`Player Location: ${result.player.x},${result.player.y},${result.player.z}`));
+    console.log(chalk.gray(`Player Location: ${result.player.x.toFixed(1)},${result.player.y.toFixed(1)},${result.player.z.toFixed(1)}`));
 
     if (result.systems.length === 0) {
       console.log(chalk.gray(`No systems discovered yet. Start exploring!`));
@@ -506,7 +530,7 @@ async function showSystemDetails(playerId: string, coordinates: string) {
     const system = result.system;
 
     console.log(chalk.blue(`=== System ${chalk.yellow(coordinates)} Details ===`));
-    console.log(chalk.gray(`Player Location: ${result.player.x},${result.player.y},${result.player.z}`));
+    console.log(chalk.gray(`Player Location: ${result.player.x.toFixed(1)},${result.player.y.toFixed(1)},${result.player.z.toFixed(1)}`));
 
     if (system.isEmpty) {
       console.log(chalk.gray(`This system is empty space.`));
@@ -799,6 +823,85 @@ async function findNearestEntity(playerId: string, entityType: string) {
     console.log(chalk.cyan(`   stellarburn ${playerId} plot "${nearest.coordinates.x},${nearest.coordinates.y},${nearest.coordinates.z}"`));
     console.log(chalk.cyan(`   stellarburn ${playerId} go "${nearest.coordinates.x},${nearest.coordinates.y},${nearest.coordinates.z}"`));
 
+  } catch (error: any) {
+    console.log(chalk.red(`✗ ${error.message}`));
+  }
+}
+
+// Station command functions
+async function showNearbyStation(playerId: string) {
+  try {
+    const result = await getNearbyStation(playerId);
+    console.log(chalk.cyan(`=== Station Scan ===`));
+
+    if (!result.nearbyStation) {
+      console.log(chalk.gray(result.message));
+      console.log(chalk.blue(`💡 Move closer to a station to dock`));
+      return;
+    }
+
+    const station = result.nearbyStation;
+    console.log(chalk.green(`✓ ${result.message}`));
+    console.log(`${chalk.cyan('Station')}: ${station.name} (Class ${station.stationClass})`);
+    console.log(`Location: ${chalk.white(`${station.coordinates.x.toFixed(1)},${station.coordinates.y.toFixed(1)},${station.coordinates.z.toFixed(1)}`)}`);
+    console.log(`Distance: ${chalk.white(station.distance.toFixed(2))} units`);
+
+    console.log(chalk.blue(`\n💡 To dock:`));
+    console.log(chalk.cyan(`   stellarburn ${playerId} dock`));
+  } catch (error: any) {
+    console.log(chalk.red(`✗ ${error.message}`));
+  }
+}
+
+async function dockAtStationCommand(playerId: string) {
+  try {
+    const result = await dockAtStation(playerId);
+    console.log(chalk.green(`✓ ${result.message}`));
+
+    if (result.station) {
+      console.log(`Docked at: ${chalk.cyan(result.station.name)} (Class ${result.station.stationClass})`);
+      console.log(`Location: ${chalk.white(`${result.station.coordinates.x.toFixed(1)},${result.station.coordinates.y.toFixed(1)},${result.station.coordinates.z.toFixed(1)}`)}`);
+
+      console.log(chalk.blue(`\n💡 Station commands:`));
+      console.log(chalk.cyan(`   stellarburn ${playerId} station       - View station details`));
+      console.log(chalk.cyan(`   stellarburn ${playerId} undock        - Leave the station`));
+    }
+  } catch (error: any) {
+    console.log(chalk.red(`✗ ${error.message}`));
+  }
+}
+
+async function undockFromStationCommand(playerId: string) {
+  try {
+    const result = await undockFromStation(playerId);
+    console.log(chalk.green(`✓ ${result.message}`));
+
+    if (result.coordinates) {
+      console.log(`Current location: ${chalk.white(`${result.coordinates.x.toFixed(1)},${result.coordinates.y.toFixed(1)},${result.coordinates.z.toFixed(1)}`)}`);
+    }
+  } catch (error: any) {
+    console.log(chalk.red(`✗ ${error.message}`));
+  }
+}
+
+async function showStationInfo(playerId: string, stationId: string) {
+  try {
+    const result = await getStationInfo(playerId, stationId);
+    console.log(chalk.cyan(`=== ${result.name} ===`));
+    console.log(`Station Class: ${chalk.yellow(result.stationClass)}`);
+    console.log(`Location: ${chalk.white(`${result.coordinates.x.toFixed(1)},${result.coordinates.y.toFixed(1)},${result.coordinates.z.toFixed(1)}`)}`);
+
+    if (result.dockedShips && result.dockedShips.length > 0) {
+      console.log(chalk.magenta(`\nDocked Ships:`));
+      result.dockedShips.forEach((ship: any) => {
+        console.log(`  ${chalk.magenta('ship')}: ${ship.name}`);
+      });
+    } else {
+      console.log(chalk.gray(`\nNo other ships currently docked.`));
+    }
+
+    console.log(chalk.blue(`\n💡 Available services:`));
+    console.log(chalk.gray(`   Trade services coming soon...`));
   } catch (error: any) {
     console.log(chalk.red(`✗ ${error.message}`));
   }

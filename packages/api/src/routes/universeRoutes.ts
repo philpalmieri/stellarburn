@@ -41,14 +41,14 @@ export function createUniverseRoutes() {
     }
   });
 
-  // Get all players (for visualization)
+  // Get all players (for visualization) - exclude docked players
   router.get('/players', async (req, res) => {
     try {
       const db = getMongo('stellarburn');
       const players = await db.collection('players')
-        .find({}, { projection: { id: 1, name: 1, coordinates: 1 } })
+        .find({ dockedAt: { $exists: false } }, { projection: { id: 1, name: 1, coordinates: 1 } })
         .toArray();
-      
+
       res.json(players);
     } catch (error) {
       console.error('Players query error:', error);

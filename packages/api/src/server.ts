@@ -6,6 +6,7 @@ import { createPlayerRoutes } from './routes/playerRoutes.js';
 import { createNavigationRoutes } from './routes/navigationRoutes.js';
 import { createUniverseRoutes } from './routes/universeRoutes.js';
 import { createProbeRoutes } from './routes/probeRoutes.js';
+import { createStationRoutes } from './routes/stationRoutes.js';
 import { getServices } from './services/serviceFactory.js';
 
 const app = express();
@@ -31,6 +32,7 @@ app.use('/api/universe', createUniverseRoutes());
 app.use('/api/player', createPlayerRoutes());
 app.use('/api/navigation', createNavigationRoutes());
 app.use('/api/probes', createProbeRoutes());
+app.use('/api/station', createStationRoutes());
 
 // Start server
 async function startServer() {

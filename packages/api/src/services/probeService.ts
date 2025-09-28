@@ -128,11 +128,12 @@ export class ProbeService {
       // Perform system scan
       const systemSector = await this.db.collection('sectors').findOne({ coordinates: systemCoordString });
 
-      // Get other players in this system
+      // Get other players in this system (exclude docked players)
       const systemPlayers = await this.db.collection('players').find({
         'coordinates.x': { $gte: probeCoords.x, $lt: probeCoords.x + 1 },
         'coordinates.y': { $gte: probeCoords.y, $lt: probeCoords.y + 1 },
-        'coordinates.z': { $gte: probeCoords.z, $lt: probeCoords.z + 1 }
+        'coordinates.z': { $gte: probeCoords.z, $lt: probeCoords.z + 1 },
+        dockedAt: { $exists: false }
       }).toArray();
 
       const systemScan = {
@@ -243,11 +244,12 @@ export class ProbeService {
     // Perform system scan
     const systemSector = await this.db.collection('sectors').findOne({ coordinates: systemCoordString });
 
-    // Get other players in this system
+    // Get other players in this system (exclude docked players)
     const systemPlayers = await this.db.collection('players').find({
       'coordinates.x': { $gte: nextCoords.x, $lt: nextCoords.x + 1 },
       'coordinates.y': { $gte: nextCoords.y, $lt: nextCoords.y + 1 },
-      'coordinates.z': { $gte: nextCoords.z, $lt: nextCoords.z + 1 }
+      'coordinates.z': { $gte: nextCoords.z, $lt: nextCoords.z + 1 },
+      dockedAt: { $exists: false }
     }).toArray();
 
     const systemScan = {

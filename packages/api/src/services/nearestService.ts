@@ -66,7 +66,8 @@ export class NearestService {
     if (!player) throw new Error('Player not found');
 
     const otherPlayers = await this.db.collection('players').find({
-      id: { $ne: playerId }
+      id: { $ne: playerId },
+      dockedAt: { $exists: false }
     }).toArray();
 
     if (otherPlayers.length === 0) return null;

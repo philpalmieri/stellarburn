@@ -29,7 +29,8 @@ const findPlayersNear = (db: any) => (excludePlayerId: string) => (coords: Coord
     'coordinates.x': { $gte: coords.x - tolerance, $lte: coords.x + tolerance },
     'coordinates.y': { $gte: coords.y - tolerance, $lte: coords.y + tolerance },
     'coordinates.z': { $gte: coords.z - tolerance, $lte: coords.z + tolerance },
-    id: { $ne: excludePlayerId }
+    id: { $ne: excludePlayerId },
+    dockedAt: { $exists: false }
   }).toArray();
 
   return nearbyPlayers.map((p: any) => ({
@@ -82,12 +83,13 @@ export class ScanningService {
     const systemCoordString = coordinateToString(systemCoords);
     const systemSector = await this.db.collection('sectors').findOne({ coordinates: systemCoordString });
     
-    // Get other players in this system
+    // Get other players in this system (exclude docked players)
     const systemPlayers = await this.db.collection('players').find({
       'coordinates.x': { $gte: systemCoords.x, $lt: systemCoords.x + 1 },
       'coordinates.y': { $gte: systemCoords.y, $lt: systemCoords.y + 1 },
       'coordinates.z': { $gte: systemCoords.z, $lt: systemCoords.z + 1 },
-      id: { $ne: playerId }
+      id: { $ne: playerId },
+      dockedAt: { $exists: false }
     }).toArray();
 
     // Get probes in this system
