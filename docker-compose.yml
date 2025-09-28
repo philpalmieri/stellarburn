@@ -76,6 +76,25 @@ services:
     networks:
       - stellarburn-network
     command: npm run dev --workspace=packages/web-ui
+
+# CLI Game Client
+  cli:
+    build:
+      context: .
+      dockerfile: docker/node/Dockerfile
+    container_name: stellarburn-cli
+    restart: "no"
+    environment:
+      NODE_ENV: development
+    volumes:
+      - .:/app
+      - /app/node_modules
+    depends_on:
+      - api
+    networks:
+      - stellarburn-network
+    profiles:
+      - tools
     
 networks:
   stellarburn-network:

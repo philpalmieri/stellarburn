@@ -14,26 +14,20 @@ program
 program
   .command('universe')
   .description('Generate a new universe')
-  .option('-q, --quadrants <number>', 'Number of quadrants', '4')
-  .option('-s, --sectors <number>', 'Sectors per quadrant', '10')  
-  .option('-z, --zones <number>', 'Zones per sector', '10')
+  .option('-s, --size <number>', 'Universe size (extends from -size to +size)', '25')
   .option('--sparsity <number>', 'Universe sparsity (0-1)', '0.05')
   .option('--clear', 'Clear existing universe data')
   .action(async (options) => {
     const config: UniverseConfig = {
-      quadrants: parseInt(options.quadrants),
-      sectorsPerQuadrant: parseInt(options.sectors),
-      zonesPerSector: parseInt(options.zones),
+      size: parseInt(options.size),
       sparsity: parseFloat(options.sparsity)
     };
 
-    console.log('🌌 StellarBurn Universe Generator');
-    console.log('================================');
-    console.log(`Quadrants: ${config.quadrants}`);
-    console.log(`Sectors per quadrant: ${config.sectorsPerQuadrant}`);
-    console.log(`Zones per sector: ${config.zonesPerSector}`);
+    console.log('🌌 StellarBurn Universe Generator (3D)');
+    console.log('===================================');
+    console.log(`Universe size: ${-config.size} to ${config.size} in each dimension`);
     console.log(`Universe sparsity: ${config.sparsity * 100}%`);
-    console.log(`Total possible sectors: ${Math.pow(config.sectorsPerQuadrant, 4) * config.quadrants}`);
+    console.log(`Total possible sectors: ${Math.pow(config.size * 2, 3)}`);
     console.log('');
 
     try {
@@ -49,7 +43,6 @@ program
   .command('stats')
   .description('Show universe statistics')
   .action(async () => {
-    // TODO: Implement universe stats
     console.log('📊 Universe statistics - Coming soon!');
   });
 

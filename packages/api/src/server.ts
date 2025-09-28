@@ -2,11 +2,11 @@ import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import { MongoClient } from 'mongodb';
+import { createPlayerRoutes } from './routes/playerRoutes.js';
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-// Use simple connection without auth for development
-const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://mongodb:27017/stellarburn';
+const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://stellarburn:stellarburn_dev@mongodb:27017/stellarburn?authSource=admin';
 
 // Middleware
 app.use(helmet());
@@ -25,7 +25,7 @@ app.get('/health', (req, res) => {
   });
 });
 
-// Basic universe info endpoint
+// Universe endpoints
 app.get('/api/universe', async (req, res) => {
   try {
     if (!mongoClient) {
@@ -34,9 +34,11 @@ app.get('/api/universe', async (req, res) => {
     
     const db = mongoClient.db('stellarburn');
     const sectorsCount = await db.collection('sectors').countDocuments();
+    const playersCount = await db.collection('players').countDocuments();
     
     res.json({
       totalSectors: sectorsCount,
+      totalPlayers: playersCount,
       message: 'StellarBurn Universe API is running!'
     });
   } catch (error) {
@@ -45,7 +47,6 @@ app.get('/api/universe', async (req, res) => {
   }
 });
 
-// Get all sectors (with optional pagination)
 app.get('/api/sectors', async (req, res) => {
   try {
     if (!mongoClient) {
@@ -68,75 +69,105 @@ app.get('/api/sectors', async (req, res) => {
   }
 });
 
-// Get specific sector by coordinates
-app.get('/api/sector/:x/:y/:z/:w', async (req, res) => {
+app.get('/api/players', async (req, res) => {
   try {
     if (!mongoClient) {
       return res.status(500).json({ error: 'Database not connected' });
     }
     
-    const { x, y, z, w } = req.params;
-    const coordinates = `${x},${y},${z},${w}`;
-    
     const db = mongoClient.db('stellarburn');
-    const sector = await db.collection('sectors').findOne({ coordinates });
+    const players = await db.collection('players')
+      .find({}, { projection: { id: 1, name: 1, coordinates: 1 } })
+      .toArray();
     
-    if (!sector) {
-      return res.status(404).json({ error: 'Sector not found' });
-    }
-    
-    res.json(sector);
+    res.json(players);
   } catch (error) {
-    console.error('Database query error:', error);
-    res.status(500).json({ error: 'Failed to fetch sector' });
+    console.error('Players query error:', error);
+    res.status(500).json({ error: 'Failed to fetch players' });
   }
 });
 
-// Get sectors within range of coordinates
-app.get('/api/sectors/near/:x/:y/:z/:w', async (req, res) => {
+// Player creation
+app.post('/api/player/create', async (req, res) => {
   try {
     if (!mongoClient) {
       return res.status(500).json({ error: 'Database not connected' });
     }
     
-    const { x, y, z, w } = req.params;
-    const range = Number(req.query.range) || 5;
-    
-    const centerX = Number(x);
-    const centerY = Number(y);
-    const centerZ = Number(z);
-    const centerW = Number(w);
+    const { name } = req.body;
+    if (!name || name.length < 2) {
+      return res.status(400).json({ error: 'Player name must be at least 2 characters' });
+    }
     
     const db = mongoClient.db('stellarburn');
-    const sectors = await db.collection('sectors').find({
-      'coord.x': { $gte: centerX - range, $lte: centerX + range },
-      'coord.y': { $gte: centerY - range, $lte: centerY + range },
-      'coord.z': { $gte: centerZ - range, $lte: centerZ + range },
-      'coord.w': { $gte: centerW - range, $lte: centerW + range }
-    }).toArray();
     
-    res.json(sectors);
+    const existingPlayer = await db.collection('players').findOne({ name });
+    if (existingPlayer) {
+      return res.status(409).json({ error: 'Player name already exists' });
+    }
+    
+    // Find safe spawn location
+    const sectors = await db.collection('sectors').find({}).toArray();
+    let spawnCoordinates = { x: 0.5, y: 0.5, z: 0.5 };
+    
+    for (const sector of sectors.slice(0, 10)) {
+      const largeObjects = sector.staticObjects.filter((obj: any) => obj.size > 10);
+      if (largeObjects.length === 0) {
+        spawnCoordinates = {
+          x: sector.coord.x + Math.random() * 0.8 + 0.1,
+          y: sector.coord.y + Math.random() * 0.8 + 0.1,
+          z: sector.coord.z + Math.random() * 0.8 + 0.1
+        };
+        break;
+      }
+    }
+    
+    const newPlayer = {
+      id: `player_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      name,
+      coordinates: spawnCoordinates,
+      ship: {
+        fuel: 100,
+        maxFuel: 100,
+        cargo: []
+      },
+      credits: 1000,
+      knownSystems: [], // Initialize empty known systems
+      createdAt: new Date(),
+      lastActivity: new Date()
+    };
+    
+    await db.collection('players').insertOne(newPlayer);
+    
+    res.json({
+      message: `Player ${name} created successfully`,
+      player: newPlayer,
+      spawnLocation: `${spawnCoordinates.x},${spawnCoordinates.y},${spawnCoordinates.z}`
+    });
   } catch (error) {
-    console.error('Database query error:', error);
-    res.status(500).json({ error: 'Failed to fetch nearby sectors' });
+    console.error('Player creation error:', error);
+    res.status(500).json({ error: 'Failed to create player' });
   }
 });
 
 // Start server
 async function startServer() {
   try {
-    // Connect to MongoDB
     console.log(`Connecting to MongoDB at: ${MONGODB_URI}`);
     mongoClient = new MongoClient(MONGODB_URI);
     await mongoClient.connect();
     console.log('✅ Connected to MongoDB successfully');
     
-    // Start Express server
+    const db = mongoClient.db('stellarburn');
+    
+    // Mount player routes
+    app.use('/api/player', createPlayerRoutes(db));
+    
     app.listen(PORT, () => {
       console.log(`🚀 StellarBurn API server running on port ${PORT}`);
       console.log(`📊 Health check: http://localhost:${PORT}/health`);
       console.log(`🌌 Universe API: http://localhost:${PORT}/api/universe`);
-      console.log(`🗺️  Sectors API: http://localhost:${PORT}/api/sectors`);
+      console.log(`👥 Player Management: http://localhost:${PORT}/api/player/`);
     });
   } catch (error) {
     console.error('❌ Failed to start server:', error);
@@ -144,7 +175,6 @@ async function startServer() {
   }
 }
 
-// Graceful shutdown
 process.on('SIGINT', async () => {
   console.log('Shutting down gracefully...');
   if (mongoClient) {

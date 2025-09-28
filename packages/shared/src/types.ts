@@ -1,16 +1,13 @@
-// 4D Coordinate system
-export interface Coordinates4D {
+// 3D Coordinate system
+export interface Coordinates3D {
   x: number;
   y: number;
   z: number;
-  w: number;
 }
 
 // Universe configuration
 export interface UniverseConfig {
-  quadrants: number;
-  sectorsPerQuadrant: number;
-  zonesPerSector: number;
+  size: number; // Universe extends from -size to +size in each dimension
   sparsity: number; // 0-1, how empty space should be
 }
 
@@ -29,7 +26,7 @@ export interface SystemType {
 export interface CelestialBody {
   id: string;
   type: 'star' | 'planet' | 'asteroid' | 'station';
-  coordinates: Coordinates4D;
+  coordinates: Coordinates3D;
   size: number; // 0-1, percentage of zone occupied
   name: string;
   resources?: ResourceDeposit[];
@@ -41,11 +38,22 @@ export interface ResourceDeposit {
   quality: number; // 0-1
 }
 
+// Star system (collection of celestial bodies)
+export interface StarSystem {
+  id: string;
+  coordinates: Coordinates3D;
+  systemType: string;
+  star: CelestialBody;
+  planets: CelestialBody[];
+  asteroids: CelestialBody[];
+  stations: CelestialBody[];
+}
+
 // Sector document (what we store in MongoDB)
 export interface SectorDocument {
   _id?: string;
-  coordinates: string; // "x.x,y.y,z.z,w.w"
-  coord: Coordinates4D; // For indexed queries
+  coordinates: string; // "x.x,y.y,z.z"
+  coord: Coordinates3D; // For indexed queries
   staticObjects: CelestialBody[]; // planets, stations, asteroids
   dynamicObjects: {
     ships: string[]; // player IDs currently here
@@ -53,4 +61,79 @@ export interface SectorDocument {
   };
   lastActivity: Date;
   createdAt: Date;
+}
+
+// Player management
+export interface Player {
+  id: string;
+  name: string;
+  coordinates: Coordinates3D;
+  ship: {
+    fuel: number;
+    maxFuel: number;
+    cargo: any[];
+  };
+  credits: number;
+  createdAt: Date;
+  lastActivity: Date;
+}
+
+export interface MovementResult {
+  success: boolean;
+  newCoordinates?: Coordinates3D;
+  fuel?: number;
+  message: string;
+  blocked?: {
+    by: string; // 'star', 'planet', etc.
+    object: CelestialBody;
+  };
+}
+
+// Jump movement result with system scan
+export interface JumpResult {
+  success: boolean;
+  newCoordinates?: Coordinates3D;
+  fuel?: number;
+  message: string;
+  systemScan?: {
+    systemCoordinates: Coordinates3D;
+    objects: CelestialBody[];
+    otherPlayers: Array<{
+      name: string;
+      coordinates: Coordinates3D;
+    }>;
+  };
+}
+
+export interface ScanResult {
+  currentZone: {
+    coordinates: Coordinates3D;
+    objects: CelestialBody[];
+    otherPlayers: string[];
+  };
+  adjacentZones: {
+    [direction: string]: {
+      coordinates: Coordinates3D;
+      objects: CelestialBody[];
+      otherPlayers: string[];
+    };
+  };
+}
+
+// API Response types
+export interface CreatePlayerResponse {
+  message: string;
+  player: Player;
+  spawnLocation: string;
+}
+
+export interface PlayerStatusResponse {
+  id: string;
+  name: string;
+  coordinates: Coordinates3D;
+  coordinatesString: string;
+  fuel: number;
+  maxFuel: number;
+  credits: number;
+  cargoCount: number;
 }

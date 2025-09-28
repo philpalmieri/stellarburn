@@ -4,14 +4,14 @@ import {
   SystemType, 
   StarSystem, 
   CelestialBody, 
-  Coordinates4D, 
+  Coordinates3D, 
   SectorDocument,
   coordinateToString 
 } from '@stellarburn/shared';
 
 const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://stellarburn:stellarburn_dev@mongodb:27017/stellarburn?authSource=admin';
 
-// Predefined system types with probabilities
+// [Keep all existing SYSTEM_TYPES...]
 const SYSTEM_TYPES: SystemType[] = [
   {
     name: 'Red Dwarf System',
@@ -69,17 +69,20 @@ const SYSTEM_TYPES: SystemType[] = [
   }
 ];
 
-// Generate random coordinate within bounds
-function generateRandomCoordinate(maxQuadrant: number, sectorsPerQuadrant: number): Coordinates4D {
+function generateRandomCoordinate(size: number): Coordinates3D {
   return {
-    x: Math.floor(Math.random() * maxQuadrant * sectorsPerQuadrant),
-    y: Math.floor(Math.random() * maxQuadrant * sectorsPerQuadrant), 
-    z: Math.floor(Math.random() * maxQuadrant * sectorsPerQuadrant),
-    w: Math.floor(Math.random() * maxQuadrant * sectorsPerQuadrant)
+    x: Math.floor(Math.random() * size * 2) - size,
+    y: Math.floor(Math.random() * size * 2) - size,
+    z: Math.floor(Math.random() * size * 2) - size
   };
 }
 
-// Select system type based on probabilities
+// Fixed sub-coordinate generation - ensure coordinates stay within system bounds
+function generateSubCoordinate(baseCoord: number): number {
+  const offset = (Math.floor(Math.random() * 8) + 1) * 0.1; // 0.1 to 0.8 (not 0.9)
+  return Math.round((baseCoord + offset) * 10) / 10; // Round to fix floating point
+}
+
 function selectSystemType(): SystemType {
   const random = Math.random();
   let cumulativeProbability = 0;
@@ -91,86 +94,110 @@ function selectSystemType(): SystemType {
     }
   }
   
-  return SYSTEM_TYPES[0]; // Fallback to first type
+  return SYSTEM_TYPES[0];
 }
 
-// Generate a star system
-function generateStarSystem(coordinates: Coordinates4D, systemType: SystemType): StarSystem {
+function generateStarSize(systemType: SystemType): number {
+  switch (systemType.name) {
+    case 'Red Dwarf System':
+      return Math.floor(Math.random() * 100) + 50;
+    case 'Solar-type System':
+      return Math.floor(Math.random() * 150) + 100;
+    case 'Binary System':
+      return Math.floor(Math.random() * 200) + 150;
+    case 'Gas Giant System':
+      return Math.floor(Math.random() * 100) + 80;
+    case 'Dense System':
+      return Math.floor(Math.random() * 100) + 200;
+    case 'Sparse System':
+      return Math.floor(Math.random() * 50) + 30;
+    default:
+      return Math.floor(Math.random() * 100) + 100;
+  }
+}
+
+function generatePlanetSize(systemType: SystemType): number {
+  const baseSize = Math.floor(Math.random() * 12) + 1;
+  
+  if (systemType.name === 'Gas Giant System') {
+    return baseSize + Math.floor(Math.random() * 40) + 20;
+  } else if (systemType.name === 'Dense System') {
+    return Math.floor(Math.random() * 8) + 3;
+  } else {
+    return baseSize;
+  }
+}
+
+function generateStarSystem(coordinates: Coordinates3D, systemType: SystemType): StarSystem {
   const systemId = `system_${coordinateToString(coordinates)}`;
   
-  // Create the star (always at the center)
+  const starSize = generateStarSize(systemType);
   const star: CelestialBody = {
     id: `${systemId}_star`,
     type: 'star',
     coordinates,
-    size: 1.0, // Stars take up full sector
-    name: `${systemType.name.split(' ')[0]} Star ${systemId.slice(-8)}`,
+    size: starSize,
+    name: `${systemType.name.split(' ')[0]} Star ${systemId.slice(-6)}`,
     resources: []
   };
 
-  // Generate planets
   const planetCount = Math.floor(
     Math.random() * (systemType.maxPlanets - systemType.minPlanets + 1)
   ) + systemType.minPlanets;
   
   const planets: CelestialBody[] = [];
   for (let i = 0; i < planetCount; i++) {
-    // Planets get slightly offset coordinates within the same major sector
-    const planetCoord: Coordinates4D = {
-      x: coordinates.x + Math.random() * 0.8 + 0.1, // 0.1 to 0.9 offset
-      y: coordinates.y + Math.random() * 0.8 + 0.1,
-      z: coordinates.z + Math.random() * 0.8 + 0.1,
-      w: coordinates.w + Math.random() * 0.8 + 0.1
+    const planetCoord: Coordinates3D = {
+      x: generateSubCoordinate(coordinates.x),
+      y: generateSubCoordinate(coordinates.y),
+      z: generateSubCoordinate(coordinates.z)
     };
 
+    const planetSize = generatePlanetSize(systemType);
     planets.push({
       id: `${systemId}_planet_${i}`,
       type: 'planet',
       coordinates: planetCoord,
-      size: Math.random() * 0.1 + 0.05, // 0.05 to 0.15
-      name: `Planet ${systemId.slice(-8)}-${i + 1}`,
-      resources: [] // TODO: Generate resources based on systemType.resourceRichness
+      size: planetSize,
+      name: `Planet ${systemId.slice(-6)}-${i + 1}`,
+      resources: []
     });
   }
 
-  // Generate asteroids if system has asteroid belt
   const asteroids: CelestialBody[] = [];
   if (systemType.hasAsteroidBelt) {
-    const asteroidCount = Math.floor(Math.random() * 5) + 2; // 2-6 asteroids
+    const asteroidCount = Math.floor(Math.random() * 8) + 3;
     for (let i = 0; i < asteroidCount; i++) {
-      const asteroidCoord: Coordinates4D = {
-        x: coordinates.x + Math.random(),
-        y: coordinates.y + Math.random(),
-        z: coordinates.z + Math.random(),
-        w: coordinates.w + Math.random()
+      const asteroidCoord: Coordinates3D = {
+        x: generateSubCoordinate(coordinates.x),
+        y: generateSubCoordinate(coordinates.y),
+        z: generateSubCoordinate(coordinates.z)
       };
 
       asteroids.push({
         id: `${systemId}_asteroid_${i}`,
         type: 'asteroid',
         coordinates: asteroidCoord,
-        size: Math.random() * 0.02 + 0.01, // 0.01 to 0.03
-        name: `Asteroid ${systemId.slice(-8)}-A${i + 1}`,
-        resources: [] // TODO: Generate mineral resources
+        size: 1,
+        name: `Asteroid ${systemId.slice(-6)}-A${i + 1}`,
+        resources: []
       });
     }
   }
 
-  // Generate stations based on probability
   const stations: CelestialBody[] = [];
   if (Math.random() < systemType.stationProbability) {
-    const stationCoord: Coordinates4D = {
-      x: coordinates.x + Math.random() * 0.9 + 0.05,
-      y: coordinates.y + Math.random() * 0.9 + 0.05,
-      z: coordinates.z + Math.random() * 0.9 + 0.05,
-      w: coordinates.w + Math.random() * 0.9 + 0.05
+    const stationCoord: Coordinates3D = {
+      x: generateSubCoordinate(coordinates.x),
+      y: generateSubCoordinate(coordinates.y),
+      z: generateSubCoordinate(coordinates.z)
     };
 
     stations.push({
       id: `${systemId}_station`,
       type: 'station',
       coordinates: stationCoord,
-      size: 0.05, // Fixed size for stations
+      size: 1,
       name: `${systemType.name.split(' ')[0]} Station`,
       resources: []
     });
@@ -187,7 +214,6 @@ function generateStarSystem(coordinates: Coordinates4D, systemType: SystemType):
   };
 }
 
-// Main universe generation function
 export async function generateUniverse(config: UniverseConfig, clearExisting: boolean = false) {
   const client = new MongoClient(MONGODB_URI);
   
@@ -203,33 +229,29 @@ export async function generateUniverse(config: UniverseConfig, clearExisting: bo
       await sectorsCollection.deleteMany({});
     }
 
-    // Calculate how many systems to generate
-    const maxPossibleSectors = Math.pow(config.sectorsPerQuadrant, 4) * config.quadrants;
+    const maxPossibleSectors = Math.pow(config.size * 2, 3);
     const systemsToGenerate = Math.floor(maxPossibleSectors * config.sparsity);
     
-    console.log(`🎲 Generating ${systemsToGenerate} star systems...`);
+    console.log(`🎲 Generating ${systemsToGenerate} star systems with fixed coordinate precision...`);
     
-    const generatedSystems: SectorDocument[] = [];
+    const generatedSystems: any[] = [];
     const usedCoordinates = new Set<string>();
     
     for (let i = 0; i < systemsToGenerate; i++) {
-      let coordinates: Coordinates4D;
+      let coordinates: Coordinates3D;
       let coordString: string;
       
-      // Find unique coordinates
       do {
-        coordinates = generateRandomCoordinate(config.quadrants, config.sectorsPerQuadrant);
+        coordinates = generateRandomCoordinate(config.size);
         coordString = coordinateToString(coordinates);
       } while (usedCoordinates.has(coordString));
       
       usedCoordinates.add(coordString);
       
-      // Generate system
       const systemType = selectSystemType();
       const starSystem = generateStarSystem(coordinates, systemType);
       
-      // Create sector document
-      const sector: SectorDocument = {
+      const sector = {
         coordinates: coordString,
         coord: coordinates,
         staticObjects: [starSystem.star, ...starSystem.planets, ...starSystem.asteroids, ...starSystem.stations],
@@ -248,14 +270,13 @@ export async function generateUniverse(config: UniverseConfig, clearExisting: bo
       }
     }
     
-    // Insert all sectors into database
-    console.log('💾 Inserting systems into database...');
     await sectorsCollection.insertMany(generatedSystems);
     
     console.log('📊 Universe Generation Summary:');
     console.log(`   Total systems generated: ${systemsToGenerate}`);
     console.log(`   Database sectors: ${await sectorsCollection.countDocuments()}`);
     console.log(`   Universe density: ${(config.sparsity * 100).toFixed(2)}%`);
+    console.log(`   Fixed coordinate precision for clean display`);
     
   } finally {
     await client.close();
