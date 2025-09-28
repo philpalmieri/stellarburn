@@ -1,5 +1,5 @@
 import React, { useMemo, useState, useEffect } from 'react';
-import { SectorDocument } from '@stellarburn/shared';
+import { SectorDocument, Probe } from '@stellarburn/shared';
 
 interface UniverseBounds {
   minX: number;
@@ -26,9 +26,10 @@ interface Props {
 }
 
 function StarSystem({ sector }: { sector: SectorDocument }) {
-  const star = sector.staticObjects.find(obj => obj.type === 'star');
-  const planets = sector.staticObjects.filter(obj => obj.type === 'planet');
-  const stations = sector.staticObjects.filter(obj => obj.type === 'station');
+  const staticObjects = sector.staticObjects || [];
+  const star = staticObjects.find(obj => obj.type === 'star');
+  const planets = staticObjects.filter(obj => obj.type === 'planet');
+  const stations = staticObjects.filter(obj => obj.type === 'station');
 
   if (!star) return null;
 
@@ -88,7 +89,25 @@ function PlayerIndicator({ player }: { player: Player }) {
         <octahedronGeometry args={[0.05, 0]} />
         <meshBasicMaterial color="#ff1493" />
       </mesh>
-      
+
+    </group>
+  );
+}
+
+function ProbeIndicator({ probe }: { probe: Probe }) {
+  return (
+    <group position={[probe.coordinates.x, probe.coordinates.y, probe.coordinates.z]}>
+      {/* Bright orange probe - diamond shape */}
+      <mesh>
+        <octahedronGeometry args={[0.03, 0]} />
+        <meshBasicMaterial color="#ff4500" />
+      </mesh>
+
+      {/* Glowing effect */}
+      <mesh>
+        <sphereGeometry args={[0.08, 8, 8]} />
+        <meshBasicMaterial color="#ff8c00" transparent opacity={0.2} />
+      </mesh>
     </group>
   );
 }
@@ -99,7 +118,7 @@ function Players() {
   useEffect(() => {
     const fetchPlayers = async () => {
       try {
-        const response = await fetch('/api/players');
+        const response = await fetch('/api/universe/players');
         const playersData = await response.json();
         setPlayers(playersData);
       } catch (error) {
@@ -122,19 +141,55 @@ function Players() {
   );
 }
 
+function Probes() {
+  const [probes, setProbes] = useState<Probe[]>([]);
+
+  useEffect(() => {
+    const fetchProbes = async () => {
+      try {
+        // Fetch all active probes from all players
+        // Since we don't have a global probes endpoint, we'll need to create one
+        const response = await fetch('/api/probes/active');
+        if (response.ok) {
+          const probesData = await response.json();
+          setProbes(probesData);
+        }
+      } catch (error) {
+        console.error('Failed to fetch probes:', error);
+      }
+    };
+
+    fetchProbes();
+    const interval = setInterval(fetchProbes, 1000); // Update more frequently for moving probes
+
+    return () => clearInterval(interval);
+  }, []);
+
+  return (
+    <>
+      {probes.map((probe) => (
+        <ProbeIndicator key={probe.id} probe={probe} />
+      ))}
+    </>
+  );
+}
+
 export default function UniverseVisualization({ sectors, bounds }: Props) {
   if (!bounds) return null;
 
   return (
-    <>      
+    <>
       {/* Star systems with proper scaling */}
       {sectors.map((sector) => (
         <StarSystem key={sector._id} sector={sector} />
       ))}
-      
+
       {/* Players - tiny ships */}
       <Players />
-      
+
+      {/* Probes - bright orange indicators */}
+      <Probes />
+
       {/* Coordinate axis indicator */}
       <group position={[bounds.minX - 2, bounds.minY - 2, bounds.minZ - 2]}>
         <line>

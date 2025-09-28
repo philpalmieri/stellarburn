@@ -2,7 +2,7 @@
 
 import { Command } from 'commander';
 import chalk from 'chalk';
-import { createPlayer, getPlayerStatus, movePlayer, scanArea, jumpPlayer, systemScan, plotCourse, autopilot, getKnownSystems, getAllKnownSystems, getSystemDetails } from './game.js';
+import { createPlayer, getPlayerStatus, movePlayer, scanArea, jumpPlayer, systemScan, plotCourse, autopilot, getKnownSystems, getAllKnownSystems, getSystemDetails, launchProbe, getActiveProbes } from './game.js';
 
 // Distance calculation helpers
 interface Coordinates3D {
@@ -115,6 +115,7 @@ program
           console.log(chalk.blue(`=== ${status.name} Status ===`));
           console.log(`Location: ${chalk.yellow(status.coordinatesString)}`);
           console.log(`Fuel: ${chalk.yellow(status.fuel)}/${status.maxFuel}`);
+          console.log(`Probes: ${chalk.cyan(status.probes)}`);
           console.log(`Credits: ${chalk.green(status.credits)}`);
           break;
 
@@ -219,6 +220,20 @@ program
           await jumpMove(playerId, 'down');
           break;
 
+        // Probe commands
+        case 'probe':
+          if (!target) {
+            console.log(chalk.red('✗ Probe requires direction'));
+            console.log(chalk.gray('Usage: stellarburn <playerId> probe n (or s/e/w/u/d)'));
+            break;
+          }
+          await launchProbeCommand(playerId, target);
+          break;
+
+        case 'probes':
+          await showActiveProbes(playerId);
+          break;
+
         // Database commands
         case 'db':
           if (target) {
@@ -268,6 +283,8 @@ program
           console.log(chalk.gray(`  go "x,y,z"       - Autopilot to coordinates`));
           console.log(chalk.gray(`  n,s,e,w,u,d      - Move in direction`));
           console.log(chalk.gray(`  jn,js,je,jw,ju,jd - Jump in direction`));
+          console.log(chalk.gray(`  probe n          - Launch probe in direction (scans 10 systems)`));
+          console.log(chalk.gray(`  probes           - Show active probes status`));
           console.log(chalk.blue(`\nTip: Use quotes around coordinates like "1,2,3"`));
       }
     } catch (error: any) {
@@ -621,6 +638,92 @@ async function executeAutopilot(playerId: string, steps: any[], stepMode: boolea
       console.log(chalk.red(`❌ Autopilot failed: ${error.message}`));
       break;
     }
+  }
+}
+
+async function launchProbeCommand(playerId: string, direction: string) {
+  try {
+    const result = await launchProbe(playerId, direction) as any;
+    console.log(result.success ? chalk.green(`✓ ${result.message}`) : chalk.red(`✗ ${result.message}`));
+    console.log(chalk.cyan(`Probes remaining: ${result.probesRemaining}`));
+
+    if (result.success && result.discoveredSystems) {
+      console.log(chalk.blue(`\n=== Probe Scan Results ===`));
+
+      const systemsWithObjects = result.discoveredSystems.filter((sys: any) =>
+        sys.systemScan.objects && sys.systemScan.objects.length > 0
+      );
+
+      const emptySystems = result.discoveredSystems.filter((sys: any) =>
+        !sys.systemScan.objects || sys.systemScan.objects.length === 0
+      );
+
+      if (systemsWithObjects.length > 0) {
+        console.log(chalk.green(`\nSystems with objects discovered:`));
+        systemsWithObjects.forEach((sys: any, index: number) => {
+          const coords = sys.coordinates;
+          console.log(chalk.yellow(`${index + 1}. System ${coords.x},${coords.y},${coords.z}`));
+
+          sys.systemScan.objects.forEach((obj: any) => {
+            const color = obj.type === 'star' ? chalk.red :
+                         obj.type === 'planet' ? chalk.green :
+                         obj.type === 'station' ? chalk.cyan : chalk.gray;
+            console.log(`   ${color(obj.type)}: ${obj.name} at ${obj.coordinates.x},${obj.coordinates.y},${obj.coordinates.z}`);
+          });
+
+          if (sys.systemScan.otherPlayers.length > 0) {
+            console.log(chalk.magenta(`   Ships: ${sys.systemScan.otherPlayers.map((p: any) => p.name).join(', ')}`));
+          }
+        });
+      }
+
+      if (emptySystems.length > 0) {
+        console.log(chalk.gray(`\nEmpty systems: ${emptySystems.length} systems scanned with no objects`));
+        const coords = emptySystems.map((sys: any) => `${sys.coordinates.x},${sys.coordinates.y},${sys.coordinates.z}`);
+        console.log(chalk.gray(`${coords.slice(0, 5).join(', ')}${emptySystems.length > 5 ? '...' : ''}`));
+      }
+
+      console.log(chalk.blue(`\n✓ Probe data has been added to your navigation database`));
+    }
+  } catch (error: any) {
+    console.log(chalk.red(`✗ ${error.message}`));
+  }
+}
+
+async function showActiveProbes(playerId: string) {
+  try {
+    const probes = await getActiveProbes(playerId) as any[];
+    console.log(chalk.blue(`=== Active Probes ===`));
+
+    if (probes.length === 0) {
+      console.log(chalk.gray(`No active probes. Launch probes with 'probe <direction>' command.`));
+      return;
+    }
+
+    console.log(chalk.yellow(`Found ${probes.length} active probe${probes.length > 1 ? 's' : ''}:`));
+
+    probes.forEach((probe: any, index: number) => {
+      const direction = probe.direction.x > 0 ? 'east' :
+                       probe.direction.x < 0 ? 'west' :
+                       probe.direction.y > 0 ? 'north' :
+                       probe.direction.y < 0 ? 'south' :
+                       probe.direction.z > 0 ? 'up' : 'down';
+
+      const launchedTime = new Date(probe.launchedAt).toLocaleTimeString();
+      const lastActivity = new Date(probe.lastActivity).toLocaleTimeString();
+
+      console.log(chalk.cyan(`\n${index + 1}. Probe ${probe.id.slice(-8)}`));
+      console.log(`   Direction: ${chalk.yellow(direction)}`);
+      console.log(`   Position: ${chalk.white(`${probe.coordinates.x},${probe.coordinates.y},${probe.coordinates.z}`)}`);
+      console.log(`   Fuel: ${chalk.green(`${probe.fuel}/${probe.maxFuel}`)}`);
+      console.log(`   Launched: ${chalk.gray(launchedTime)}`);
+      console.log(`   Last Activity: ${chalk.gray(lastActivity)}`);
+      console.log(`   Status: ${chalk.green(probe.status)}`);
+    });
+
+    console.log(chalk.blue(`\nProbes are visible as bright orange dots in the universe map.`));
+  } catch (error: any) {
+    console.log(chalk.red(`✗ ${error.message}`));
   }
 }
 

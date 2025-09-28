@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Canvas } from '@react-three/fiber';
 import { OrbitControls, Stars } from '@react-three/drei';
-import { SectorDocument } from '@stellarburn/shared';
+import { SectorDocument, Probe } from '@stellarburn/shared';
 
 interface Player {
   id: string;
@@ -18,9 +18,10 @@ interface Props {
 }
 
 function StarSystem({ sector, playerCoords }: { sector: SectorDocument; playerCoords: any }) {
-  const star = sector.staticObjects.find(obj => obj.type === 'star');
-  const planets = sector.staticObjects.filter(obj => obj.type === 'planet');
-  const stations = sector.staticObjects.filter(obj => obj.type === 'station');
+  const staticObjects = sector.staticObjects || [];
+  const star = staticObjects.find(obj => obj.type === 'star');
+  const planets = staticObjects.filter(obj => obj.type === 'planet');
+  const stations = staticObjects.filter(obj => obj.type === 'station');
 
   if (!star) return null;
 
@@ -87,6 +88,60 @@ function PlayerShip() {
         <meshBasicMaterial color="#ff69b4" transparent opacity={0.3} />
       </mesh>
     </group>
+  );
+}
+
+function ProbeIndicator({ probe, playerCoords }: { probe: Probe; playerCoords: any }) {
+  // Position relative to player
+  const relativeX = probe.coordinates.x - playerCoords.x;
+  const relativeY = probe.coordinates.y - playerCoords.y;
+  const relativeZ = probe.coordinates.z - playerCoords.z;
+
+  return (
+    <group position={[relativeX, relativeY, relativeZ]}>
+      {/* Bright orange probe - diamond shape */}
+      <mesh>
+        <octahedronGeometry args={[0.03, 0]} />
+        <meshBasicMaterial color="#ff4500" />
+      </mesh>
+
+      {/* Glowing effect */}
+      <mesh>
+        <sphereGeometry args={[0.08, 8, 8]} />
+        <meshBasicMaterial color="#ff8c00" transparent opacity={0.2} />
+      </mesh>
+    </group>
+  );
+}
+
+function Probes({ playerCoords }: { playerCoords: any }) {
+  const [probes, setProbes] = useState<Probe[]>([]);
+
+  useEffect(() => {
+    const fetchProbes = async () => {
+      try {
+        const response = await fetch('/api/probes/active');
+        if (response.ok) {
+          const probesData = await response.json();
+          setProbes(probesData);
+        }
+      } catch (error) {
+        console.error('Failed to fetch probes:', error);
+      }
+    };
+
+    fetchProbes();
+    const interval = setInterval(fetchProbes, 1000); // Update every second for moving probes
+
+    return () => clearInterval(interval);
+  }, []);
+
+  return (
+    <>
+      {probes.map((probe) => (
+        <ProbeIndicator key={probe.id} probe={probe} playerCoords={playerCoords} />
+      ))}
+    </>
   );
 }
 
@@ -191,6 +246,9 @@ export default function PlayerCenteredView({ playerId }: Props) {
         {knownSystems.map((sector) => (
           <StarSystem key={sector._id} sector={sector} playerCoords={playerCoords} />
         ))}
+
+        {/* Probes positioned relative to player */}
+        <Probes playerCoords={playerCoords} />
         
         <OrbitControls 
           enablePan={true}

@@ -1,5 +1,5 @@
 import fetch from 'node-fetch';
-import { CelestialBody, Coordinates3D, CreatePlayerResponse, PlayerStatusResponse, MovementResult } from '@stellarburn/shared';
+import { CelestialBody, Coordinates3D, CreatePlayerResponse, PlayerStatusResponse, MovementResult, ProbeResult, Probe } from '@stellarburn/shared';
 
 const API_BASE = process.env.API_BASE || 'http://localhost:3000/api';
 
@@ -183,5 +183,43 @@ export async function getSystemDetails(playerId: string, coordinates: string) {
       throw new Error('Cannot connect to API server. Make sure the API is running.');
     }
     throw new Error(error.message || 'Network error during system lookup');
+  }
+}
+
+export async function launchProbe(playerId: string, direction: string): Promise<ProbeResult> {
+  try {
+    const response = await fetch(`${API_BASE}/player/${playerId}/probe/${direction}`, {
+      method: 'POST'
+    });
+
+    if (!response.ok) {
+      const error: any = await response.json();
+      throw new Error(error.error || `Failed to launch probe (${response.status})`);
+    }
+
+    return await response.json() as ProbeResult;
+  } catch (error: any) {
+    if (error.code === 'ECONNREFUSED') {
+      throw new Error('Cannot connect to API server. Make sure the API is running.');
+    }
+    throw new Error(error.message || 'Network error during probe launch');
+  }
+}
+
+export async function getActiveProbes(playerId: string): Promise<Probe[]> {
+  try {
+    const response = await fetch(`${API_BASE}/player/${playerId}/probes`);
+
+    if (!response.ok) {
+      const error: any = await response.json();
+      throw new Error(error.error || `Failed to get probes (${response.status})`);
+    }
+
+    return await response.json() as Probe[];
+  } catch (error: any) {
+    if (error.code === 'ECONNREFUSED') {
+      throw new Error('Cannot connect to API server. Make sure the API is running.');
+    }
+    throw new Error(error.message || 'Network error during probe query');
   }
 }

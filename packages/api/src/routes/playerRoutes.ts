@@ -46,7 +46,13 @@ export function createPlayerRoutes() {
         ship: {
           fuel: 100,
           maxFuel: 100,
-          cargo: []
+          cargo: [],
+          probes: 10,
+          probeConfig: {
+            maxFuel: 10,
+            scanRange: 0.05,
+            moveDelay: 1000
+          }
         },
         credits: 1000,
         knownSystems: [],
@@ -86,7 +92,8 @@ export function createPlayerRoutes() {
         fuel: player.ship.fuel,
         maxFuel: player.ship.maxFuel,
         credits: player.credits,
-        cargoCount: player.ship.cargo.length
+        cargoCount: player.ship.cargo.length,
+        probes: player.ship.probes || 0
       });
     } catch (error) {
       console.error('Player status error:', error);
@@ -168,6 +175,45 @@ export function createPlayerRoutes() {
     } catch (error) {
       console.error('System scan error:', error);
       res.status(500).json({ error: error instanceof Error ? error.message : 'Failed to scan system' });
+    }
+  });
+
+  // Probe launch
+  router.post('/:playerId/probe/:direction', async (req, res) => {
+    try {
+      const { playerId, direction } = req.params;
+      const { probeService } = getServicesLazy();
+      const result = await probeService.launchProbe(playerId, direction);
+      res.json(result);
+    } catch (error) {
+      console.error('Probe launch error:', error);
+      res.status(500).json({ error: error instanceof Error ? error.message : 'Failed to launch probe' });
+    }
+  });
+
+  // Get active probes
+  router.get('/:playerId/probes', async (req, res) => {
+    try {
+      const { playerId } = req.params;
+      const { probeService } = getServicesLazy();
+      const probes = await probeService.getActiveProbes(playerId);
+      res.json(probes);
+    } catch (error) {
+      console.error('Get probes error:', error);
+      res.status(500).json({ error: error instanceof Error ? error.message : 'Failed to get probes' });
+    }
+  });
+
+  // Get all probes (including destroyed)
+  router.get('/:playerId/probes/all', async (req, res) => {
+    try {
+      const { playerId } = req.params;
+      const { probeService } = getServicesLazy();
+      const probes = await probeService.getAllProbes(playerId);
+      res.json(probes);
+    } catch (error) {
+      console.error('Get all probes error:', error);
+      res.status(500).json({ error: error instanceof Error ? error.message : 'Failed to get all probes' });
     }
   });
 

@@ -4,12 +4,16 @@ import { NavigationService } from './navigationService.js';
 import { MovementService } from './movementService.js';
 import { ScanningService } from './scanningService.js';
 import { ExplorationService } from './explorationService.js';
+import { ProbeService } from './probeService.js';
+import { ProbeScheduler } from './probeScheduler.js';
 
 export interface ServiceContainer {
   navigationService: NavigationService;
   movementService: MovementService;
   scanningService: ScanningService;
   explorationService: ExplorationService;
+  probeService: ProbeService;
+  probeScheduler: ProbeScheduler;
 }
 
 let servicesCache: ServiceContainer | null = null;
@@ -22,12 +26,16 @@ export function getServices(dbName: string = 'stellarburn'): ServiceContainer {
     const scanningService = new ScanningService(db, explorationService);
     const movementService = new MovementService(db, scanningService);
     const navigationService = new NavigationService(db);
+    const probeService = new ProbeService(db, scanningService, explorationService);
+    const probeScheduler = new ProbeScheduler(probeService);
 
     servicesCache = {
       navigationService,
       movementService,
       scanningService,
-      explorationService
+      explorationService,
+      probeService,
+      probeScheduler
     };
   }
 

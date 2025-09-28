@@ -72,6 +72,8 @@ export interface Player {
     fuel: number;
     maxFuel: number;
     cargo: any[];
+    probes: number;
+    probeConfig: ProbeConfig;
   };
   credits: number;
   createdAt: Date;
@@ -120,6 +122,43 @@ export interface ScanResult {
   };
 }
 
+// Probe management
+export interface Probe {
+  id: string;
+  playerId: string;
+  coordinates: Coordinates3D;
+  direction: Coordinates3D;
+  fuel: number;
+  maxFuel: number;
+  launchedAt: Date;
+  lastActivity: Date;
+  status: 'active' | 'destroyed' | 'recalled';
+}
+
+export interface ProbeConfig {
+  maxFuel: number; // How many jumps the probe can make
+  scanRange: number; // How far the probe can scan
+  moveDelay: number; // Milliseconds between moves (for future real-time movement)
+}
+
+export interface ProbeResult {
+  success: boolean;
+  message: string;
+  probesRemaining: number;
+  probe?: Probe; // The launched probe object
+  discoveredSystems: Array<{
+    coordinates: Coordinates3D;
+    systemScan: {
+      systemCoordinates: Coordinates3D;
+      objects: CelestialBody[];
+      otherPlayers: Array<{
+        name: string;
+        coordinates: Coordinates3D;
+      }>;
+    };
+  }>;
+}
+
 // API Response types
 export interface CreatePlayerResponse {
   message: string;
@@ -136,4 +175,5 @@ export interface PlayerStatusResponse {
   maxFuel: number;
   credits: number;
   cargoCount: number;
+  probes: number;
 }

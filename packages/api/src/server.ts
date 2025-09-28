@@ -5,6 +5,8 @@ import { connectToMongoDB, closeMongoDB } from './services/databaseService.js';
 import { createPlayerRoutes } from './routes/playerRoutes.js';
 import { createNavigationRoutes } from './routes/navigationRoutes.js';
 import { createUniverseRoutes } from './routes/universeRoutes.js';
+import { createProbeRoutes } from './routes/probeRoutes.js';
+import { getServices } from './services/serviceFactory.js';
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -28,6 +30,7 @@ app.get('/health', (req, res) => {
 app.use('/api/universe', createUniverseRoutes());
 app.use('/api/player', createPlayerRoutes());
 app.use('/api/navigation', createNavigationRoutes());
+app.use('/api/probes', createProbeRoutes());
 
 // Start server
 async function startServer() {
@@ -41,6 +44,10 @@ async function startServer() {
       console.log(`🌌 Universe API: http://localhost:${PORT}/api/universe`);
       console.log(`👥 Player Management: http://localhost:${PORT}/api/player/`);
       console.log(`🧭 Navigation: http://localhost:${PORT}/api/navigation/`);
+
+      // Start the probe movement scheduler
+      const { probeScheduler } = getServices();
+      probeScheduler.start();
     });
   } catch (error) {
     console.error('❌ Failed to start server:', error);
@@ -50,6 +57,11 @@ async function startServer() {
 
 process.on('SIGINT', async () => {
   console.log('Shutting down gracefully...');
+
+  // Stop probe scheduler
+  const { probeScheduler } = getServices();
+  probeScheduler.stop();
+
   await closeMongoDB();
   process.exit(0);
 });
