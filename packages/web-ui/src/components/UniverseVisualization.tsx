@@ -47,37 +47,38 @@ function StarSystem({ sector }: { sector: SectorDocument }) {
   const starRadius = Math.min(0.4, (star.size / 1000) * 2); // Scale 0-350 zones to 0-0.7 radius max
   
   return (
-    <group position={[sector.coord.x, sector.coord.y, sector.coord.z]}>
-      {/* Star - much smaller */}
-      <mesh>
-        <sphereGeometry args={[starRadius, 16, 16]} />
-        <meshBasicMaterial color={systemColor} />
-      </mesh>
-      
-      {/* Planets - tiny compared to stars */}
-      {planets.slice(0, 4).map((planet, index) => {
-        const planetRadius = Math.min(0.05, (planet.size / 100) * 0.1); // Much smaller planets
-        const angle = (index / planets.length) * Math.PI * 2;
-        const distance = starRadius + 0.1 + index * 0.08;
-        const x = Math.cos(angle) * distance;
-        const z = Math.sin(angle) * distance;
-        
+    <>
+      {/* Star at its actual coordinates */}
+      <group position={[star.coordinates.x, star.coordinates.y, star.coordinates.z]}>
+        <mesh>
+          <sphereGeometry args={[starRadius, 16, 16]} />
+          <meshBasicMaterial color={systemColor} />
+        </mesh>
+      </group>
+
+      {/* Planets at their actual coordinates */}
+      {planets.map((planet) => {
+        const planetRadius = Math.min(0.05, (planet.size / 100) * 0.1);
         return (
-          <mesh key={planet.id} position={[x, 0, z]}>
-            <sphereGeometry args={[planetRadius, 8, 8]} />
-            <meshBasicMaterial color="#a0a0a0" />
-          </mesh>
+          <group key={planet.id} position={[planet.coordinates.x, planet.coordinates.y, planet.coordinates.z]}>
+            <mesh>
+              <sphereGeometry args={[planetRadius, 8, 8]} />
+              <meshBasicMaterial color="#a0a0a0" />
+            </mesh>
+          </group>
         );
       })}
-      
-      {/* Stations - tiny cubes */}
+
+      {/* Stations at their actual coordinates */}
       {stations.map((station) => (
-        <mesh key={station.id} position={[0, starRadius + 0.1, 0]}>
-          <boxGeometry args={[0.02, 0.02, 0.02]} />
-          <meshBasicMaterial color="#64ffda" />
-        </mesh>
+        <group key={station.id} position={[station.coordinates.x, station.coordinates.y, station.coordinates.z]}>
+          <mesh>
+            <boxGeometry args={[0.02, 0.02, 0.02]} />
+            <meshBasicMaterial color="#64ffda" />
+          </mesh>
+        </group>
       ))}
-    </group>
+    </>
   );
 }
 

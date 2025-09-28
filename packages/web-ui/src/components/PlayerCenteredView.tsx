@@ -19,57 +19,62 @@ interface Props {
 
 function StarSystem({ sector, playerCoords }: { sector: SectorDocument; playerCoords: any }) {
   const staticObjects = sector.staticObjects || [];
-  const star = staticObjects.find(obj => obj.type === 'star');
-  const planets = staticObjects.filter(obj => obj.type === 'planet');
-  const stations = staticObjects.filter(obj => obj.type === 'station');
 
-  if (!star) return null;
-
-  const systemColor = React.useMemo(() => {
-    if (star.name.includes('Red Dwarf')) return '#ff6b6b';
-    if (star.name.includes('Solar')) return '#ffd93d';
-    if (star.name.includes('Binary')) return '#74c0fc';
-    if (star.name.includes('Gas Giant')) return '#ff8cc8';
-    if (star.name.includes('Dense')) return '#51cf66';
-    return '#ffffff';
-  }, [star]);
-
-  // Position relative to player
-  const relativeX = sector.coord.x - playerCoords.x;
-  const relativeY = sector.coord.y - playerCoords.y;
-  const relativeZ = sector.coord.z - playerCoords.z;
-
-  const starRadius = Math.min(0.4, (star.size / 1000) * 2);
-  
   return (
-    <group position={[relativeX, relativeY, relativeZ]}>
-      <mesh>
-        <sphereGeometry args={[starRadius, 16, 16]} />
-        <meshBasicMaterial color={systemColor} />
-      </mesh>
-      
-      {planets.slice(0, 4).map((planet, index) => {
-        const planetRadius = Math.min(0.05, (planet.size / 100) * 0.1);
-        const angle = (index / planets.length) * Math.PI * 2;
-        const distance = starRadius + 0.1 + index * 0.08;
-        const x = Math.cos(angle) * distance;
-        const z = Math.sin(angle) * distance;
-        
-        return (
-          <mesh key={planet.id} position={[x, 0, z]}>
-            <sphereGeometry args={[planetRadius, 8, 8]} />
-            <meshBasicMaterial color="#a0a0a0" />
-          </mesh>
-        );
+    <>
+      {staticObjects.map((obj) => {
+        // Use actual object coordinates, not system coordinates
+        const relativeX = obj.coordinates.x - playerCoords.x;
+        const relativeY = obj.coordinates.y - playerCoords.y;
+        const relativeZ = obj.coordinates.z - playerCoords.z;
+
+        if (obj.type === 'star') {
+          const starRadius = Math.min(0.4, (obj.size / 1000) * 2);
+          const starColor = React.useMemo(() => {
+            if (obj.name.includes('Red Dwarf')) return '#ff6b6b';
+            if (obj.name.includes('Solar')) return '#ffd93d';
+            if (obj.name.includes('Binary')) return '#74c0fc';
+            if (obj.name.includes('Gas Giant')) return '#ff8cc8';
+            if (obj.name.includes('Dense')) return '#51cf66';
+            return '#ffffff';
+          }, [obj.name]);
+
+          return (
+            <group key={obj.id} position={[relativeX, relativeY, relativeZ]}>
+              <mesh>
+                <sphereGeometry args={[starRadius, 16, 16]} />
+                <meshBasicMaterial color={starColor} />
+              </mesh>
+            </group>
+          );
+        }
+
+        if (obj.type === 'planet') {
+          const planetRadius = Math.min(0.05, (obj.size / 100) * 0.1);
+          return (
+            <group key={obj.id} position={[relativeX, relativeY, relativeZ]}>
+              <mesh>
+                <sphereGeometry args={[planetRadius, 8, 8]} />
+                <meshBasicMaterial color="#a0a0a0" />
+              </mesh>
+            </group>
+          );
+        }
+
+        if (obj.type === 'station') {
+          return (
+            <group key={obj.id} position={[relativeX, relativeY, relativeZ]}>
+              <mesh>
+                <boxGeometry args={[0.02, 0.02, 0.02]} />
+                <meshBasicMaterial color="#64ffda" />
+              </mesh>
+            </group>
+          );
+        }
+
+        return null;
       })}
-      
-      {stations.map((station) => (
-        <mesh key={station.id} position={[0, starRadius + 0.1, 0]}>
-          <boxGeometry args={[0.02, 0.02, 0.02]} />
-          <meshBasicMaterial color="#64ffda" />
-        </mesh>
-      ))}
-    </group>
+    </>
   );
 }
 

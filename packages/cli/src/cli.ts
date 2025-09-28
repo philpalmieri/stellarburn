@@ -6,7 +6,7 @@ import { createPlayer, getPlayerStatus, movePlayer, scanArea, jumpPlayer, system
 
 // Reusable display functions for scan results
 function displayCurrentZone(zone: any) {
-  console.log(chalk.yellow(`Current Zone: ${zone.coordinates.x},${zone.coordinates.y},${zone.coordinates.z}`));
+  console.log(chalk.yellow(`Current Zone: ${zone.coordinates.x.toFixed(1)},${zone.coordinates.y.toFixed(1)},${zone.coordinates.z.toFixed(1)}`));
 
   // Display objects in current zone
   if (zone.objects.length > 0) {
@@ -15,7 +15,8 @@ function displayCurrentZone(zone: any) {
       const color = obj.type === 'star' ? chalk.red :
                    obj.type === 'planet' ? chalk.green :
                    obj.type === 'station' ? chalk.cyan : chalk.gray;
-      console.log(`  ${color(obj.type)}: ${obj.name} (size: ${obj.size} zones)`);
+      const coords = obj.coordinates ? `at ${obj.coordinates.x.toFixed(1)},${obj.coordinates.y.toFixed(1)},${obj.coordinates.z.toFixed(1)} ` : '';
+      console.log(`  ${color(obj.type)}: ${obj.name} ${coords}(size: ${obj.size} zones)`);
     });
   }
 
