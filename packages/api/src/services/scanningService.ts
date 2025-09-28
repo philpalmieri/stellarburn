@@ -1,6 +1,61 @@
 import { Coordinates3D, coordinateToString } from '@stellarburn/shared';
 import { ExplorationService } from './explorationService.js';
 
+// Functional helper functions using currying and higher-order functions
+const createDistanceCalculator = (targetCoords: Coordinates3D) =>
+  (coords: Coordinates3D) => Math.sqrt(
+    Math.pow(coords.x - targetCoords.x, 2) +
+    Math.pow(coords.y - targetCoords.y, 2) +
+    Math.pow(coords.z - targetCoords.z, 2)
+  );
+
+const createRangeFilter = (scanRange: number) =>
+  (distance: number) => distance <= scanRange;
+
+const findObjectsNear = (systemSector: any) => (coords: Coordinates3D) => (scanRange: number = 0.05) => {
+  if (!systemSector?.staticObjects) return [];
+
+  const calculateDistance = createDistanceCalculator(coords);
+  const isInRange = createRangeFilter(scanRange);
+
+  return systemSector.staticObjects.filter((obj: any) =>
+    isInRange(calculateDistance(obj.coordinates))
+  );
+};
+
+const findPlayersNear = (db: any) => (excludePlayerId: string) => (coords: Coordinates3D) => async (scanRange: number = 0.05) => {
+  const tolerance = scanRange;
+  const nearbyPlayers = await db.collection('players').find({
+    'coordinates.x': { $gte: coords.x - tolerance, $lte: coords.x + tolerance },
+    'coordinates.y': { $gte: coords.y - tolerance, $lte: coords.y + tolerance },
+    'coordinates.z': { $gte: coords.z - tolerance, $lte: coords.z + tolerance },
+    id: { $ne: excludePlayerId }
+  }).toArray();
+
+  return nearbyPlayers.map((p: any) => ({
+    name: p.name,
+    coordinates: p.coordinates
+  }));
+};
+
+const findProbesNear = (db: any) => (coords: Coordinates3D) => async (scanRange: number = 0.05) => {
+  const tolerance = scanRange;
+  const nearbyProbes = await db.collection('probes').find({
+    'coordinates.x': { $gte: coords.x - tolerance, $lte: coords.x + tolerance },
+    'coordinates.y': { $gte: coords.y - tolerance, $lte: coords.y + tolerance },
+    'coordinates.z': { $gte: coords.z - tolerance, $lte: coords.z + tolerance },
+    status: 'active'
+  }).toArray();
+
+  return nearbyProbes.map((probe: any) => ({
+    id: probe.id,
+    playerId: probe.playerId,
+    coordinates: probe.coordinates,
+    fuel: probe.fuel,
+    status: probe.status
+  }));
+};
+
 export class ScanningService {
   constructor(
     private db: any,
@@ -34,13 +89,28 @@ export class ScanningService {
       'coordinates.z': { $gte: systemCoords.z, $lt: systemCoords.z + 1 },
       id: { $ne: playerId }
     }).toArray();
-    
+
+    // Get probes in this system
+    const systemProbes = await this.db.collection('probes').find({
+      'coordinates.x': { $gte: systemCoords.x, $lt: systemCoords.x + 1 },
+      'coordinates.y': { $gte: systemCoords.y, $lt: systemCoords.y + 1 },
+      'coordinates.z': { $gte: systemCoords.z, $lt: systemCoords.z + 1 },
+      status: 'active'
+    }).toArray();
+
     return {
       systemCoordinates: systemCoords,
       objects: systemSector ? systemSector.staticObjects : [],
       otherPlayers: systemPlayers.map((p: any) => ({
         name: p.name,
         coordinates: p.coordinates
+      })),
+      probes: systemProbes.map((probe: any) => ({
+        id: probe.id,
+        playerId: probe.playerId,
+        coordinates: probe.coordinates,
+        fuel: probe.fuel,
+        status: probe.status
       }))
     };
   }
@@ -65,41 +135,17 @@ export class ScanningService {
     const systemCoordString = coordinateToString(systemCoords);
     const systemSector = await this.db.collection('sectors').findOne({ coordinates: systemCoordString });
 
-    // Helper function to find objects near a coordinate
-    const findObjectsNear = (coords: Coordinates3D, scanRange: number = 0.05) => {
-      if (!systemSector?.staticObjects) return [];
-
-      return systemSector.staticObjects.filter((obj: any) => {
-        const distance = Math.sqrt(
-          Math.pow(obj.coordinates.x - coords.x, 2) +
-          Math.pow(obj.coordinates.y - coords.y, 2) +
-          Math.pow(obj.coordinates.z - coords.z, 2)
-        );
-        return distance <= scanRange;
-      });
-    };
-
-    // Helper function to find players near a coordinate
-    const findPlayersNear = async (coords: Coordinates3D, scanRange: number = 0.05) => {
-      const tolerance = scanRange;
-      const nearbyPlayers = await this.db.collection('players').find({
-        'coordinates.x': { $gte: coords.x - tolerance, $lte: coords.x + tolerance },
-        'coordinates.y': { $gte: coords.y - tolerance, $lte: coords.y + tolerance },
-        'coordinates.z': { $gte: coords.z - tolerance, $lte: coords.z + tolerance },
-        id: { $ne: playerId }
-      }).toArray();
-
-      return nearbyPlayers.map((p: any) => ({
-        name: p.name,
-        coordinates: p.coordinates
-      }));
-    };
+    // Create partially applied functions for this scan session
+    const findObjectsInSystemSector = findObjectsNear(systemSector);
+    const findPlayersExcludingCurrent = findPlayersNear(this.db)(playerId);
+    const findActiveProbes = findProbesNear(this.db);
 
     // Scan current zone - use larger range for objects you're right next to
-    const currentObjects = findObjectsNear(currentCoords, 0.1);
-    const currentPlayers = await findPlayersNear(currentCoords, 0.05);
+    const currentObjects = findObjectsInSystemSector(currentCoords)(0.1);
+    const currentPlayers = await findPlayersExcludingCurrent(currentCoords)(0.05);
+    const currentProbes = await findActiveProbes(currentCoords)(0.05);
 
-    // Define adjacent coordinates
+    // Define adjacent coordinates - these should represent the centers of adjacent 0.1-unit zones
     const adjacentCoords = {
       north: { x: currentCoords.x, y: currentCoords.y + 0.1, z: currentCoords.z },
       south: { x: currentCoords.x, y: currentCoords.y - 0.1, z: currentCoords.z },
@@ -109,13 +155,14 @@ export class ScanningService {
       down: { x: currentCoords.x, y: currentCoords.y, z: currentCoords.z - 0.1 }
     };
 
-    // Scan adjacent zones - use smaller range to prevent bleed-through
+    // Scan adjacent zones - use larger range to capture entities in neighboring zones
     const adjacentZones: any = {};
     for (const [direction, coords] of Object.entries(adjacentCoords)) {
       adjacentZones[direction] = {
         coordinates: coords,
-        objects: findObjectsNear(coords, 0.05),
-        otherPlayers: await findPlayersNear(coords, 0.05)
+        objects: findObjectsInSystemSector(coords)(0.05),
+        otherPlayers: await findPlayersExcludingCurrent(coords)(0.08), // Larger range to detect entities in adjacent zones
+        probes: await findActiveProbes(coords)(0.08)
       };
     }
 
@@ -123,7 +170,8 @@ export class ScanningService {
       currentZone: {
         coordinates: currentCoords,
         objects: currentObjects,
-        otherPlayers: currentPlayers
+        otherPlayers: currentPlayers,
+        probes: currentProbes
       },
       adjacentZones
     };

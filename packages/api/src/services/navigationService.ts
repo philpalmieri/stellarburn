@@ -169,28 +169,10 @@ export class NavigationService {
 
   /**
    * Check for collisions with other players
+   * Note: Player collisions are disabled to allow shared occupation of zones
    */
   private async checkPlayerCollision(playerId: string, targetCoord: Coordinates3D): Promise<CollisionInfo> {
-    const tolerance = 0.05;
-    
-    const otherPlayers = await this.db.collection('players').find({
-      'coordinates.x': { $gte: targetCoord.x - tolerance, $lte: targetCoord.x + tolerance },
-      'coordinates.y': { $gte: targetCoord.y - tolerance, $lte: targetCoord.y + tolerance },
-      'coordinates.z': { $gte: targetCoord.z - tolerance, $lte: targetCoord.z + tolerance },
-      id: { $ne: playerId }
-    }).toArray();
-    
-    if (otherPlayers.length > 0) {
-      return {
-        hasCollision: true,
-        obstruction: {
-          type: 'player',
-          name: otherPlayers[0].name,
-          coordinates: otherPlayers[0].coordinates
-        }
-      };
-    }
-    
+    // Players can occupy the same zones - no collision detection needed
     return { hasCollision: false };
   }
 

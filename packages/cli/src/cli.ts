@@ -4,6 +4,86 @@ import { Command } from 'commander';
 import chalk from 'chalk';
 import { createPlayer, getPlayerStatus, movePlayer, scanArea, jumpPlayer, systemScan, plotCourse, autopilot, getKnownSystems, getAllKnownSystems, getSystemDetails, launchProbe, getActiveProbes } from './game.js';
 
+// Reusable display functions for scan results
+function displayCurrentZone(zone: any) {
+  console.log(chalk.yellow(`Current Zone: ${zone.coordinates.x},${zone.coordinates.y},${zone.coordinates.z}`));
+
+  // Display objects in current zone
+  if (zone.objects.length > 0) {
+    console.log(chalk.white(`Objects in zone:`));
+    zone.objects.forEach((obj: any) => {
+      const color = obj.type === 'star' ? chalk.red :
+                   obj.type === 'planet' ? chalk.green :
+                   obj.type === 'station' ? chalk.cyan : chalk.gray;
+      console.log(`  ${color(obj.type)}: ${obj.name} (size: ${obj.size} zones)`);
+    });
+  }
+
+  // Display other players in current zone
+  if (zone.otherPlayers && zone.otherPlayers.length > 0) {
+    console.log(chalk.magenta(`Other ships in zone:`));
+    zone.otherPlayers.forEach((player: any) => {
+      console.log(`  ${chalk.magenta('ship')}: ${player.name} at ${player.coordinates.x.toFixed(1)},${player.coordinates.y.toFixed(1)},${player.coordinates.z.toFixed(1)}`);
+    });
+  }
+
+  // Display probes in current zone
+  if (zone.probes && zone.probes.length > 0) {
+    console.log(chalk.yellow(`Probes in zone:`));
+    zone.probes.forEach((probe: any) => {
+      console.log(`  ${chalk.yellow('probe')}: ID ${probe.id} (fuel: ${probe.fuel}) at ${probe.coordinates.x.toFixed(1)},${probe.coordinates.y.toFixed(1)},${probe.coordinates.z.toFixed(1)}`);
+    });
+  }
+
+  // Show empty space only if nothing is present
+  if (zone.objects.length === 0 &&
+      (!zone.otherPlayers || zone.otherPlayers.length === 0) &&
+      (!zone.probes || zone.probes.length === 0)) {
+    console.log(chalk.gray(`Empty space`));
+  }
+}
+
+function displayAdjacentZones(adjacentZones: any) {
+  console.log(chalk.blue(`\nAdjacent Zones:`));
+  Object.entries(adjacentZones).forEach(([direction, zone]: [string, any]) => {
+    const objectCount = zone.objects.length;
+    const playerCount = zone.otherPlayers ? zone.otherPlayers.length : 0;
+    const probeCount = zone.probes ? zone.probes.length : 0;
+    let status = chalk.gray('empty');
+
+    if (objectCount > 0 || playerCount > 0 || probeCount > 0) {
+      const statusParts = [];
+
+      if (objectCount > 0) {
+        const hasStation = zone.objects.some((obj: any) => obj.type === 'station');
+        const hasStar = zone.objects.some((obj: any) => obj.type === 'star');
+
+        if (hasStation) statusParts.push(chalk.cyan('station'));
+        else if (hasStar) statusParts.push(chalk.red('star system'));
+        else statusParts.push(chalk.green(`${objectCount} objects`));
+      }
+
+      if (playerCount > 0) {
+        statusParts.push(chalk.magenta(`${playerCount} ship${playerCount > 1 ? 's' : ''}`));
+      }
+
+      if (probeCount > 0) {
+        statusParts.push(chalk.yellow(`${probeCount} probe${probeCount > 1 ? 's' : ''}`));
+      }
+
+      status = statusParts.join(', ');
+    }
+
+    console.log(`  ${chalk.yellow(direction.padEnd(5))}: ${status}`);
+  });
+}
+
+function displayLocalScan(scanResult: any) {
+  console.log(chalk.blue(`=== Local Scan ===`));
+  displayCurrentZone(scanResult.currentZone);
+  displayAdjacentZones(scanResult.adjacentZones);
+}
+
 // Distance calculation helpers
 interface Coordinates3D {
   x: number;
@@ -121,37 +201,7 @@ program
 
         case 'scan':
           const scanResult = await scanArea(playerId) as any;
-          console.log(chalk.blue(`=== Local Scan ===`));
-          console.log(chalk.yellow(`Current Zone: ${scanResult.currentZone.coordinates.x},${scanResult.currentZone.coordinates.y},${scanResult.currentZone.coordinates.z}`));
-          
-          if (scanResult.currentZone.objects.length > 0) {
-            console.log(chalk.white(`Objects in zone:`));
-            scanResult.currentZone.objects.forEach((obj: any) => {
-              const color = obj.type === 'star' ? chalk.red :
-                           obj.type === 'planet' ? chalk.green :
-                           obj.type === 'station' ? chalk.cyan : chalk.gray;
-              console.log(`  ${color(obj.type)}: ${obj.name} (size: ${obj.size} zones)`);
-            });
-          } else {
-            console.log(chalk.gray(`Empty space`));
-          }
-          
-          console.log(chalk.blue(`\nAdjacent Zones:`));
-          Object.entries(scanResult.adjacentZones).forEach(([direction, zone]: [string, any]) => {
-            const objectCount = zone.objects.length;
-            let status = chalk.gray('empty');
-
-            if (objectCount > 0) {
-              const hasStation = zone.objects.some((obj: any) => obj.type === 'station');
-              const hasStar = zone.objects.some((obj: any) => obj.type === 'star');
-
-              if (hasStation) status = chalk.cyan('station');
-              else if (hasStar) status = chalk.red('star system');
-              else status = chalk.green(`${objectCount} objects`);
-            }
-
-            console.log(`  ${chalk.yellow(direction.padEnd(5))}: ${status}`);
-          });
+          displayLocalScan(scanResult);
           break;
 
         case 'sscan':
@@ -299,37 +349,8 @@ async function quickMove(playerId: string, direction: string) {
 
     // Display local scan results if available
     if (result.success && result.localScan) {
-      console.log(chalk.blue(`\n=== Local Scan ===`));
-      console.log(chalk.yellow(`Current Zone: ${result.localScan.currentZone.coordinates.x},${result.localScan.currentZone.coordinates.y},${result.localScan.currentZone.coordinates.z}`));
-
-      if (result.localScan.currentZone.objects.length > 0) {
-        console.log(chalk.white(`Objects in zone:`));
-        result.localScan.currentZone.objects.forEach((obj: any) => {
-          const color = obj.type === 'star' ? chalk.red :
-                       obj.type === 'planet' ? chalk.green :
-                       obj.type === 'station' ? chalk.cyan : chalk.gray;
-          console.log(`  ${color(obj.type)}: ${obj.name} (size: ${obj.size} zones)`);
-        });
-      } else {
-        console.log(chalk.gray(`Empty space`));
-      }
-
-      console.log(chalk.blue(`\nAdjacent Zones:`));
-      Object.entries(result.localScan.adjacentZones).forEach(([direction, zone]: [string, any]) => {
-        const objectCount = zone.objects.length;
-        let status = chalk.gray('empty');
-
-        if (objectCount > 0) {
-          const hasStation = zone.objects.some((obj: any) => obj.type === 'station');
-          const hasStar = zone.objects.some((obj: any) => obj.type === 'star');
-
-          if (hasStation) status = chalk.cyan('station');
-          else if (hasStar) status = chalk.red('star system');
-          else status = chalk.green(`${objectCount} objects`);
-        }
-
-        console.log(`  ${chalk.yellow(direction.padEnd(5))}: ${status}`);
-      });
+      console.log(); // Add blank line
+      displayLocalScan(result.localScan);
     }
   } catch (error: any) {
     console.log(chalk.red(`✗ ${error.message}`));
