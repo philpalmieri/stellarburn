@@ -19,9 +19,9 @@ export function getServices(dbName: string = 'stellarburn'): ServiceContainer {
     const db = getMongo(dbName);
 
     const explorationService = new ExplorationService(db);
-    const movementService = new MovementService(db);
-    const navigationService = new NavigationService(db);
     const scanningService = new ScanningService(db, explorationService);
+    const movementService = new MovementService(db, scanningService);
+    const navigationService = new NavigationService(db);
 
     servicesCache = {
       navigationService,

@@ -1,8 +1,14 @@
 import { Coordinates3D } from './types.js';
 
 // Pure functional coordinate utilities
-export const coordinateToString = ({ x, y, z }: Coordinates3D): string => 
-  `${x},${y},${z}`;
+export const coordinateToString = ({ x, y, z }: Coordinates3D): string => {
+  // Format to 1 decimal place, removing trailing zeros
+  const formatCoord = (val: number) => {
+    const rounded = Math.round(val * 10) / 10;
+    return rounded % 1 === 0 ? rounded.toString() : rounded.toFixed(1);
+  };
+  return `${formatCoord(x)},${formatCoord(y)},${formatCoord(z)}`;
+};
 
 export const stringToCoordinate = (coordString: string): Coordinates3D => {
   const [x, y, z] = coordString.split(',').map(Number);

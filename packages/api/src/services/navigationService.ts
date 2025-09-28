@@ -135,9 +135,23 @@ export class NavigationService {
 
     for (const obj of systemSector.staticObjects) {
       const distance = this.calculate3DDistance(targetCoord, obj.coordinates);
-      const objRadius = Math.sqrt(obj.size) * 0.1; // Same scaling as visualization
-      
-      if (distance < objRadius) {
+
+      // Use a much smaller collision radius - only collision if very close to object center
+      // This allows navigation around objects without requiring complex pathfinding
+      let collisionRadius;
+
+      if (obj.type === 'star') {
+        // Stars are dangerous - larger collision radius but still reasonable
+        collisionRadius = Math.min(Math.sqrt(obj.size) * 0.05, 0.3);
+      } else if (obj.type === 'station') {
+        // Stations you might want to dock with - very small radius
+        collisionRadius = 0.05;
+      } else {
+        // Planets, asteroids - medium collision radius
+        collisionRadius = Math.min(Math.sqrt(obj.size) * 0.03, 0.2);
+      }
+
+      if (distance < collisionRadius) {
         return {
           hasCollision: true,
           obstruction: {

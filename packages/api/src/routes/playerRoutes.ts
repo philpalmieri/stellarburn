@@ -183,5 +183,134 @@ export function createPlayerRoutes() {
     }
   });
 
+  // Database/Knowledge system endpoints
+
+  // Get known systems with objects (default behavior - 'db')
+  router.get('/:playerId/database', async (req, res) => {
+    try {
+      const { playerId } = req.params;
+      const { explorationService } = getServicesLazy();
+      const result = await explorationService.getKnownSystems(playerId);
+
+      // Filter to only show systems with objects
+      const systemsWithObjects = result.knownSystems.filter((system: any) =>
+        system.staticObjects && system.staticObjects.length > 0
+      );
+
+      res.json({
+        player: result.playerCoordinates,
+        totalKnownSystems: result.knownSystems.length,
+        systemsWithObjects: systemsWithObjects.length,
+        systems: systemsWithObjects.map((system: any) => ({
+          coordinates: system.coordinates,
+          coord: system.coord,
+          objectCount: system.staticObjects.length,
+          objects: system.staticObjects.map((obj: any) => ({
+            type: obj.type,
+            name: obj.name,
+            size: obj.size,
+            coordinates: obj.coordinates
+          }))
+        }))
+      });
+    } catch (error) {
+      console.error('Database query error:', error);
+      res.status(500).json({ error: error instanceof Error ? error.message : 'Failed to query database' });
+    }
+  });
+
+  // Get all known systems including empty ones ('db all')
+  router.get('/:playerId/database/all', async (req, res) => {
+    try {
+      const { playerId } = req.params;
+      const { explorationService } = getServicesLazy();
+      const result = await explorationService.getKnownSystems(playerId);
+
+      res.json({
+        player: result.playerCoordinates,
+        totalKnownSystems: result.knownSystems.length,
+        systems: result.knownSystems.map((system: any) => ({
+          coordinates: system.coordinates,
+          coord: system.coord,
+          isEmpty: !system.staticObjects || system.staticObjects.length === 0,
+          objectCount: system.staticObjects ? system.staticObjects.length : 0,
+          objects: system.staticObjects ? system.staticObjects.map((obj: any) => ({
+            type: obj.type,
+            name: obj.name,
+            size: obj.size,
+            coordinates: obj.coordinates
+          })) : []
+        }))
+      });
+    } catch (error) {
+      console.error('Database all query error:', error);
+      res.status(500).json({ error: error instanceof Error ? error.message : 'Failed to query database' });
+    }
+  });
+
+  // Get specific system details ('db 1,1,1')
+  router.get('/:playerId/database/system/:coordinates', async (req, res) => {
+    try {
+      const { playerId, coordinates } = req.params;
+      const { explorationService } = getServicesLazy();
+      const result = await explorationService.getKnownSystems(playerId);
+
+      // Find the specific system in player's known systems
+      const system = result.knownSystems.find((sys: any) => sys.coordinates === coordinates);
+
+      if (!system) {
+        // Check if the system exists in the universe at all (but don't reveal details!)
+        const db = getMongo('stellarburn');
+        const universalSystem = await db.collection('sectors').findOne({ coordinates });
+
+        if (universalSystem) {
+          return res.status(403).json({
+            error: `You haven't been to system ${coordinates} yet - no peeking! 🔭`,
+            hint: 'You need to visit this system first to discover what\'s there',
+            suggestion: 'Use navigation to travel there and explore',
+            teaser: 'This system does exist somewhere in the universe...'
+          });
+        } else {
+          return res.status(404).json({
+            error: `System ${coordinates} doesn't exist in this universe`,
+            hint: 'Check your coordinates - this system was never generated',
+            suggestion: 'Try coordinates closer to explored space'
+          });
+        }
+      }
+
+      // Get additional details about the system
+      const systemDetails = {
+        coordinates: system.coordinates,
+        coord: system.coord,
+        discovered: system.createdAt || system.lastActivity,
+        isEmpty: !system.staticObjects || system.staticObjects.length === 0,
+        objectCount: system.staticObjects ? system.staticObjects.length : 0,
+        objects: system.staticObjects ? system.staticObjects.map((obj: any) => ({
+          id: obj.id,
+          type: obj.type,
+          name: obj.name,
+          size: obj.size,
+          coordinates: obj.coordinates,
+          distance: Math.sqrt(
+            Math.pow(obj.coordinates.x - result.playerCoordinates.x, 2) +
+            Math.pow(obj.coordinates.y - result.playerCoordinates.y, 2) +
+            Math.pow(obj.coordinates.z - result.playerCoordinates.z, 2)
+          ).toFixed(2),
+          resources: obj.resources || []
+        })) : [],
+        dynamicObjects: system.dynamicObjects || { ships: [], probes: [] }
+      };
+
+      res.json({
+        player: result.playerCoordinates,
+        system: systemDetails
+      });
+    } catch (error) {
+      console.error('System details error:', error);
+      res.status(500).json({ error: error instanceof Error ? error.message : 'Failed to get system details' });
+    }
+  });
+
   return router;
 }

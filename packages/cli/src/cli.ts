@@ -2,13 +2,72 @@
 
 import { Command } from 'commander';
 import chalk from 'chalk';
-import { createPlayer, getPlayerStatus, movePlayer, scanArea, jumpPlayer, systemScan, plotCourse, autopilot } from './game.js';
+import { createPlayer, getPlayerStatus, movePlayer, scanArea, jumpPlayer, systemScan, plotCourse, autopilot, getKnownSystems, getAllKnownSystems, getSystemDetails } from './game.js';
+
+// Distance calculation helpers
+interface Coordinates3D {
+  x: number;
+  y: number;
+  z: number;
+}
+
+function getSystemCoords(coord: Coordinates3D): Coordinates3D {
+  return {
+    x: Math.floor(coord.x),
+    y: Math.floor(coord.y),
+    z: Math.floor(coord.z)
+  };
+}
+
+function calculateJumpDistance(from: Coordinates3D, to: Coordinates3D): number {
+  const fromSystem = getSystemCoords(from);
+  const toSystem = getSystemCoords(to);
+
+  // Manhattan distance in system jumps
+  return Math.abs(toSystem.x - fromSystem.x) +
+         Math.abs(toSystem.y - fromSystem.y) +
+         Math.abs(toSystem.z - fromSystem.z);
+}
+
+function calculateMoveDistance(from: Coordinates3D, to: Coordinates3D): number {
+  // Check if in same system
+  const fromSystem = getSystemCoords(from);
+  const toSystem = getSystemCoords(to);
+
+  if (fromSystem.x === toSystem.x && fromSystem.y === toSystem.y && fromSystem.z === toSystem.z) {
+    // Same system - calculate Manhattan distance in moves (each move is 0.1 units)
+    const deltaX = Math.abs(to.x - from.x);
+    const deltaY = Math.abs(to.y - from.y);
+    const deltaZ = Math.abs(to.z - from.z);
+
+    return Math.ceil(deltaX / 0.1) + Math.ceil(deltaY / 0.1) + Math.ceil(deltaZ / 0.1);
+  } else {
+    // Different systems - this is more complex
+    const jumpDistance = calculateJumpDistance(from, to);
+
+    // Estimate moves to get to system edge from current position
+    const fromSystemCenter = { x: fromSystem.x + 0.5, y: fromSystem.y + 0.5, z: fromSystem.z + 0.5 };
+    const toSystemCenter = { x: toSystem.x + 0.5, y: toSystem.y + 0.5, z: toSystem.z + 0.5 };
+
+    // Movement within source system (simplified)
+    const fromMoves = Math.ceil(Math.abs(from.x - fromSystemCenter.x) / 0.1) +
+                     Math.ceil(Math.abs(from.y - fromSystemCenter.y) / 0.1) +
+                     Math.ceil(Math.abs(from.z - fromSystemCenter.z) / 0.1);
+
+    // Movement within target system
+    const toMoves = Math.ceil(Math.abs(to.x - toSystemCenter.x) / 0.1) +
+                   Math.ceil(Math.abs(to.y - toSystemCenter.y) / 0.1) +
+                   Math.ceil(Math.abs(to.z - toSystemCenter.z) / 0.1);
+
+    return jumpDistance + fromMoves + toMoves;
+  }
+}
 
 const program = new Command();
 
 program
   .name('stellarburn')
-  .description('StellarBurn CLI Game Client')
+  .description('StellarBurn CLI Game Client\n\nUsage Examples:\n  stellarburn create "PlayerName"           - Create new player\n  stellarburn <playerId> status              - Show player status\n  stellarburn <playerId> scan                - Local area scan\n  stellarburn <playerId> db                  - Show known systems\n  stellarburn <playerId> db "1,2,3"         - Show system details\n  stellarburn <playerId> plot "1,2,3"       - Plot course\n  stellarburn <playerId> go "1,2,3"         - Autopilot to destination')
   .version('1.0.0');
 
 // Create player
@@ -28,93 +87,26 @@ program
     }
   });
 
-// Plot course command
-program
-  .command('plot <playerId> <from> <to>')
-  .description('Plot a course from one coordinate to another (e.g., "0,0,0" to "5,3,-2")')
-  .action(async (playerId, from, to) => {
-    try {
-      const result = await plotCourse(playerId, from, to) as any;
-      console.log(chalk.blue(`=== Course Plot ===`));
-      console.log(chalk.yellow(`From: ${result.from}`));
-      console.log(chalk.yellow(`To: ${result.to}`));
-      console.log(chalk.green(`Total Steps: ${result.path.steps.length}`));
-      console.log(chalk.green(`Total Fuel Cost: ${result.path.totalFuelCost}`));
-      console.log(chalk.green(`Total Distance: ${result.path.totalDistance.toFixed(1)}`));
-      console.log(chalk.green(`Estimated Time: ${result.path.estimatedTime} steps`));
 
-      console.log(chalk.blue(`\n=== Flight Plan ===`));
-      result.path.steps.slice(0, 10).forEach((step: any, index: number) => {
-        const stepType = step.type === 'jump' ? chalk.cyan('JUMP') : chalk.white('MOVE');
-        const direction = chalk.yellow(step.direction.toUpperCase());
-        const coords = `${step.to.x},${step.to.y},${step.to.z}`;
-        console.log(`${(index + 1).toString().padStart(2)}: ${stepType} ${direction} to ${coords} (fuel: ${step.fuelCost})`);
-      });
 
-      if (result.path.steps.length > 10) {
-        console.log(chalk.gray(`... and ${result.path.steps.length - 10} more steps`));
-      }
 
-      console.log(chalk.green(`\n✓ Course plotted successfully! Use 'stellarburn autopilot ${playerId}' to begin.`));
-    } catch (error: any) {
-      console.log(chalk.red(`✗ ${error.message}`));
-    }
-  });
-
-// Combined plot and autopilot command
-program
-  .command('goto <playerId> <destination>')
-  .description('Plot course and execute autopilot to destination (e.g., "5,3,-2")')
-  .option('-p, --plot-only', 'Only plot the course, don\'t execute')
-  .option('-s, --step', 'Execute one step at a time (interactive)')
-  .action(async (playerId, destination, options) => {
-    try {
-      // First get player's current position
-      const status = await getPlayerStatus(playerId);
-      const currentPos = `${status.coordinates.x},${status.coordinates.y},${status.coordinates.z}`;
-
-      console.log(chalk.blue(`=== Navigation System ===`));
-      console.log(chalk.yellow(`Current position: ${currentPos}`));
-      console.log(chalk.yellow(`Destination: ${destination}`));
-      console.log(chalk.gray(`Player: ${status.name} (Fuel: ${status.fuel}/${status.maxFuel})`));
-
-      // Plot the course
-      console.log(chalk.blue(`\nPlotting course...`));
-      const courseResult = await plotCourse(playerId, currentPos, destination) as any;
-
-      console.log(chalk.green(`✓ Course plotted successfully!`));
-      console.log(chalk.green(`Total Steps: ${courseResult.path.steps.length}`));
-      console.log(chalk.green(`Total Fuel Cost: ${courseResult.path.totalFuelCost}`));
-      console.log(chalk.green(`Total Distance: ${courseResult.path.totalDistance.toFixed(1)}`));
-
-      if (options.plotOnly) {
-        console.log(chalk.blue(`\n=== Flight Plan Preview ===`));
-        courseResult.path.steps.slice(0, 10).forEach((step: any, index: number) => {
-          const stepType = step.type === 'jump' ? chalk.cyan('JUMP') : chalk.white('MOVE');
-          const direction = chalk.yellow(step.direction.toUpperCase());
-          const coords = `${step.to.x},${step.to.y},${step.to.z}`;
-          console.log(`${(index + 1).toString().padStart(2)}: ${stepType} ${direction} to ${coords} (fuel: ${step.fuelCost})`);
-        });
-        if (courseResult.path.steps.length > 10) {
-          console.log(chalk.gray(`... and ${courseResult.path.steps.length - 10} more steps`));
-        }
-        return;
-      }
-
-      // Execute autopilot
-      console.log(chalk.blue(`\n=== Autopilot Engaged ===`));
-      await executeAutopilot(playerId, courseResult.path.steps, options.step);
-
-    } catch (error: any) {
-      console.log(chalk.red(`✗ ${error.message}`));
-    }
-  });
-
-// Player commands
+// Player commands with consistent playerId-first pattern
 program
   .argument('<playerId>', 'Player ID')
   .argument('<action>', 'Action to perform')
-  .action(async (playerId, action) => {
+  .argument('[target]', 'Optional target/coordinates for actions like db, plot, go')
+  .allowUnknownOption(true)
+  .action(async (playerId, action, target) => {
+    // Handle case where coordinates start with dash by checking raw process arguments
+    if (!target) {
+      const args = process.argv.slice(2); // Remove 'node' and script name
+      if (args.length >= 3) {
+        const possibleTarget = args[2];
+        if (possibleTarget && possibleTarget.includes(',')) {
+          target = possibleTarget;
+        }
+      }
+    }
     try {
       switch (action.toLowerCase()) {
         case 'status':
@@ -227,13 +219,56 @@ program
           await jumpMove(playerId, 'down');
           break;
 
+        // Database commands
+        case 'db':
+          if (target) {
+            // Remove quotes if present
+            const coordinates = target.replace(/["']/g, '');
+            await showSystemDetails(playerId, coordinates);
+          } else {
+            await showKnownSystems(playerId);
+          }
+          break;
+
+        case 'dball':
+          await showAllKnownSystems(playerId);
+          break;
+
+        // Navigation commands
+        case 'plot':
+          if (!target) {
+            console.log(chalk.red('✗ Plot requires destination coordinates'));
+            console.log(chalk.gray('Usage: stellarburn <playerId> plot "1,2,3"'));
+            break;
+          }
+          const plotDestination = target.replace(/["']/g, '');
+          await plotCourseTo(playerId, plotDestination);
+          break;
+
+        case 'go':
+          if (!target) {
+            console.log(chalk.red('✗ Go requires destination coordinates'));
+            console.log(chalk.gray('Usage: stellarburn <playerId> go "1,2,3"'));
+            break;
+          }
+          const goDestination = target.replace(/["']/g, '');
+          await gotoDestination(playerId, goDestination);
+          break;
+
         default:
           console.log(chalk.red(`Unknown action: ${action}`));
-          console.log(chalk.gray(`Movement: n, s, e, w, u, d`));
-          console.log(chalk.gray(`Jump: jn, js, je, jw, ju, jd`));
-          console.log(chalk.gray(`Scan: scan (local), sscan (system)`));
-          console.log(chalk.gray(`Navigation: use 'stellarburn goto <playerId> <coords>' instead`));
-          console.log(chalk.gray(`Other: status`));
+          console.log(chalk.blue(`\nAvailable actions for ${playerId}:`));
+          console.log(chalk.gray(`  status           - Show player status`));
+          console.log(chalk.gray(`  scan             - Local area scan`));
+          console.log(chalk.gray(`  sscan            - System scan`));
+          console.log(chalk.gray(`  db               - Show known systems with objects`));
+          console.log(chalk.gray(`  db "x,y,z"       - Show specific system details`));
+          console.log(chalk.gray(`  dball            - Show all known systems`));
+          console.log(chalk.gray(`  plot "x,y,z"     - Plot course to coordinates`));
+          console.log(chalk.gray(`  go "x,y,z"       - Autopilot to coordinates`));
+          console.log(chalk.gray(`  n,s,e,w,u,d      - Move in direction`));
+          console.log(chalk.gray(`  jn,js,je,jw,ju,jd - Jump in direction`));
+          console.log(chalk.blue(`\nTip: Use quotes around coordinates like "1,2,3"`));
       }
     } catch (error: any) {
       console.log(chalk.red(`✗ ${error.message}`));
@@ -244,6 +279,41 @@ async function quickMove(playerId: string, direction: string) {
   try {
     const result = await movePlayer(playerId, direction) as any;
     console.log(result.success ? chalk.green(`✓ ${result.message}`) : chalk.red(`✗ ${result.message}`));
+
+    // Display local scan results if available
+    if (result.success && result.localScan) {
+      console.log(chalk.blue(`\n=== Local Scan ===`));
+      console.log(chalk.yellow(`Current Zone: ${result.localScan.currentZone.coordinates.x},${result.localScan.currentZone.coordinates.y},${result.localScan.currentZone.coordinates.z}`));
+
+      if (result.localScan.currentZone.objects.length > 0) {
+        console.log(chalk.white(`Objects in zone:`));
+        result.localScan.currentZone.objects.forEach((obj: any) => {
+          const color = obj.type === 'star' ? chalk.red :
+                       obj.type === 'planet' ? chalk.green :
+                       obj.type === 'station' ? chalk.cyan : chalk.gray;
+          console.log(`  ${color(obj.type)}: ${obj.name} (size: ${obj.size} zones)`);
+        });
+      } else {
+        console.log(chalk.gray(`Empty space`));
+      }
+
+      console.log(chalk.blue(`\nAdjacent Zones:`));
+      Object.entries(result.localScan.adjacentZones).forEach(([direction, zone]: [string, any]) => {
+        const objectCount = zone.objects.length;
+        let status = chalk.gray('empty');
+
+        if (objectCount > 0) {
+          const hasStation = zone.objects.some((obj: any) => obj.type === 'station');
+          const hasStar = zone.objects.some((obj: any) => obj.type === 'star');
+
+          if (hasStation) status = chalk.cyan('station');
+          else if (hasStar) status = chalk.red('star system');
+          else status = chalk.green(`${objectCount} objects`);
+        }
+
+        console.log(`  ${chalk.yellow(direction.padEnd(5))}: ${status}`);
+      });
+    }
   } catch (error: any) {
     console.log(chalk.red(`✗ ${error.message}`));
   }
@@ -254,16 +324,17 @@ async function jumpMove(playerId: string, direction: string) {
     const result = await jumpPlayer(playerId, direction) as any;
     console.log(result.success ? chalk.green(`✓ ${result.message}`) : chalk.red(`✗ ${result.message}`));
     console.log(chalk.yellow(`Fuel remaining: ${result.fuel}`));
-    
-    if (result.systemScan) {
+
+    // Display system scan results
+    if (result.success && result.systemScan) {
       console.log(chalk.blue(`\n=== System Scan ===`));
       const scan = result.systemScan;
       console.log(chalk.yellow(`System: ${scan.systemCoordinates.x},${scan.systemCoordinates.y},${scan.systemCoordinates.z}`));
-      
+
       if (scan.objects.length > 0) {
         console.log(chalk.white(`Objects in system:`));
         scan.objects.forEach((obj: any) => {
-          const color = obj.type === 'star' ? chalk.red : 
+          const color = obj.type === 'star' ? chalk.red :
                        obj.type === 'planet' ? chalk.green :
                        obj.type === 'station' ? chalk.cyan : chalk.gray;
           console.log(`  ${color(obj.type)}: ${obj.name} at ${obj.coordinates.x},${obj.coordinates.y},${obj.coordinates.z} (${obj.size} zones)`);
@@ -271,7 +342,7 @@ async function jumpMove(playerId: string, direction: string) {
       } else {
         console.log(chalk.gray(`Empty system`));
       }
-      
+
       if (scan.otherPlayers.length > 0) {
         console.log(chalk.magenta(`\nOther ships:`));
         scan.otherPlayers.forEach((player: any) => {
@@ -279,6 +350,210 @@ async function jumpMove(playerId: string, direction: string) {
         });
       }
     }
+  } catch (error: any) {
+    console.log(chalk.red(`✗ ${error.message}`));
+  }
+}
+
+// Database helper functions
+async function showKnownSystems(playerId: string) {
+  try {
+    const result = await getKnownSystems(playerId) as any;
+    console.log(chalk.blue(`=== Known Systems Database ===`));
+    console.log(chalk.yellow(`Total Known: ${result.totalKnownSystems} systems`));
+    console.log(chalk.yellow(`With Objects: ${result.systemsWithObjects} systems`));
+    console.log(chalk.gray(`Player Location: ${result.player.x},${result.player.y},${result.player.z}`));
+
+    if (result.systems.length === 0) {
+      console.log(chalk.gray(`No systems with objects discovered yet.`));
+      console.log(chalk.gray(`Explore the universe to discover stars, planets, and stations!`));
+      return;
+    }
+
+    const playerCoords = result.player;
+
+    console.log(chalk.blue(`\n=== Systems with Objects ===`));
+    result.systems.forEach((system: any, index: number) => {
+      // Parse system coordinates
+      const [x, y, z] = system.coordinates.split(',').map(Number);
+      const systemCoords = { x, y, z };
+
+      // Calculate jump distance
+      const jumpDistance = calculateJumpDistance(playerCoords, systemCoords);
+      const distanceDisplay = jumpDistance === 0 ?
+        chalk.green('(current system)') :
+        chalk.yellow(`(${jumpDistance} jump${jumpDistance > 1 ? 's' : ''})`);
+
+      console.log(chalk.white(`${(index + 1).toString().padStart(2)}. System ${chalk.yellow(system.coordinates)} ${distanceDisplay}`));
+
+      const starCount = system.objects.filter((obj: any) => obj.type === 'star').length;
+      const planetCount = system.objects.filter((obj: any) => obj.type === 'planet').length;
+      const stationCount = system.objects.filter((obj: any) => obj.type === 'station').length;
+      const asteroidCount = system.objects.filter((obj: any) => obj.type === 'asteroid').length;
+
+      const parts = [];
+      if (starCount > 0) parts.push(chalk.red(`${starCount} star${starCount > 1 ? 's' : ''}`));
+      if (planetCount > 0) parts.push(chalk.green(`${planetCount} planet${planetCount > 1 ? 's' : ''}`));
+      if (stationCount > 0) parts.push(chalk.cyan(`${stationCount} station${stationCount > 1 ? 's' : ''}`));
+      if (asteroidCount > 0) parts.push(chalk.gray(`${asteroidCount} asteroid${asteroidCount > 1 ? 's' : ''}`));
+
+      console.log(`    ${parts.join(', ')}`);
+    });
+
+    console.log(chalk.blue(`\nTip: Use 'db ${result.systems[0]?.coordinates}' for detailed system info`));
+  } catch (error: any) {
+    console.log(chalk.red(`✗ ${error.message}`));
+  }
+}
+
+async function showAllKnownSystems(playerId: string) {
+  try {
+    const result = await getAllKnownSystems(playerId) as any;
+    console.log(chalk.blue(`=== Complete Known Systems Database ===`));
+    console.log(chalk.yellow(`Total Systems: ${result.totalKnownSystems}`));
+    console.log(chalk.gray(`Player Location: ${result.player.x},${result.player.y},${result.player.z}`));
+
+    if (result.systems.length === 0) {
+      console.log(chalk.gray(`No systems discovered yet. Start exploring!`));
+      return;
+    }
+
+    const withObjects = result.systems.filter((sys: any) => !sys.isEmpty);
+    const empty = result.systems.filter((sys: any) => sys.isEmpty);
+
+    console.log(chalk.blue(`\n=== Systems with Objects (${withObjects.length}) ===`));
+    withObjects.forEach((system: any, index: number) => {
+      console.log(`${chalk.yellow(system.coordinates)} - ${chalk.green(system.objectCount)} objects`);
+    });
+
+    if (empty.length > 0) {
+      console.log(chalk.blue(`\n=== Empty Systems (${empty.length}) ===`));
+      empty.slice(0, 10).forEach((system: any) => {
+        console.log(chalk.gray(system.coordinates));
+      });
+      if (empty.length > 10) {
+        console.log(chalk.gray(`... and ${empty.length - 10} more empty systems`));
+      }
+    }
+  } catch (error: any) {
+    console.log(chalk.red(`✗ ${error.message}`));
+  }
+}
+
+async function showSystemDetails(playerId: string, coordinates: string) {
+  try {
+    const result = await getSystemDetails(playerId, coordinates) as any;
+    const system = result.system;
+
+    console.log(chalk.blue(`=== System ${chalk.yellow(coordinates)} Details ===`));
+    console.log(chalk.gray(`Player Location: ${result.player.x},${result.player.y},${result.player.z}`));
+
+    if (system.isEmpty) {
+      console.log(chalk.gray(`This system is empty space.`));
+      return;
+    }
+
+    console.log(chalk.green(`Objects: ${system.objectCount}`));
+    if (system.discovered) {
+      console.log(chalk.gray(`Discovered: ${new Date(system.discovered).toLocaleDateString()}`));
+    }
+
+    console.log(chalk.blue(`\n=== Objects in System ===`));
+    system.objects.forEach((obj: any, index: number) => {
+      const color = obj.type === 'star' ? chalk.red :
+                   obj.type === 'planet' ? chalk.green :
+                   obj.type === 'station' ? chalk.cyan : chalk.gray;
+
+      // Calculate movement distance
+      const moveDistance = calculateMoveDistance(result.player, obj.coordinates);
+      const jumpDistance = calculateJumpDistance(result.player, obj.coordinates);
+
+      let distanceInfo;
+      if (jumpDistance === 0) {
+        // Same system
+        distanceInfo = chalk.green(`${moveDistance} moves`);
+      } else {
+        // Different system - show total moves including jumps
+        distanceInfo = chalk.yellow(`${jumpDistance} jumps, ${moveDistance} total moves`);
+      }
+
+      console.log(`${(index + 1).toString().padStart(2)}. ${color(obj.type.toUpperCase())}: ${chalk.white(obj.name)}`);
+      console.log(`    Location: ${obj.coordinates.x},${obj.coordinates.y},${obj.coordinates.z}`);
+      console.log(`    Size: ${obj.size} | Distance: ${obj.distance} units | Travel: ${distanceInfo}`);
+
+      if (obj.resources && obj.resources.length > 0) {
+        console.log(`    Resources: ${obj.resources.join(', ')}`);
+      }
+    });
+
+    if (system.dynamicObjects.ships.length > 0) {
+      console.log(chalk.magenta(`\n=== Ships in System ===`));
+      system.dynamicObjects.ships.forEach((ship: any) => {
+        console.log(`  ${chalk.magenta(ship.name)} at ${ship.coordinates.x},${ship.coordinates.y},${ship.coordinates.z}`);
+      });
+    }
+  } catch (error: any) {
+    console.log(chalk.red(`✗ ${error.message}`));
+  }
+}
+
+async function plotCourseTo(playerId: string, destination: string) {
+  try {
+    // First get player's current position
+    const status = await getPlayerStatus(playerId);
+    const currentPos = `${status.coordinates.x},${status.coordinates.y},${status.coordinates.z}`;
+
+    const result = await plotCourse(playerId, currentPos, destination) as any;
+    console.log(chalk.blue(`=== Course Plot ===`));
+    console.log(chalk.yellow(`From: ${result.from}`));
+    console.log(chalk.yellow(`To: ${result.to}`));
+    console.log(chalk.green(`Total Steps: ${result.path.steps.length}`));
+    console.log(chalk.green(`Total Fuel Cost: ${result.path.totalFuelCost}`));
+    console.log(chalk.green(`Total Distance: ${result.path.totalDistance.toFixed(1)}`));
+    console.log(chalk.green(`Estimated Time: ${result.path.estimatedTime} steps`));
+
+    console.log(chalk.blue(`\n=== Flight Plan ===`));
+    result.path.steps.slice(0, 10).forEach((step: any, index: number) => {
+      const stepType = step.type === 'jump' ? chalk.cyan('JUMP') : chalk.white('MOVE');
+      const direction = chalk.yellow(step.direction.toUpperCase());
+      const coords = `${step.to.x},${step.to.y},${step.to.z}`;
+      console.log(`${(index + 1).toString().padStart(2)}: ${stepType} ${direction} to ${coords} (fuel: ${step.fuelCost})`);
+    });
+
+    if (result.path.steps.length > 10) {
+      console.log(chalk.gray(`... and ${result.path.steps.length - 10} more steps`));
+    }
+
+    console.log(chalk.green(`\n✓ Course plotted successfully! Use '${playerId} go "${destination}"' to begin autopilot.`));
+  } catch (error: any) {
+    console.log(chalk.red(`✗ ${error.message}`));
+  }
+}
+
+async function gotoDestination(playerId: string, destination: string) {
+  try {
+    // First get player's current position
+    const status = await getPlayerStatus(playerId);
+    const currentPos = `${status.coordinates.x},${status.coordinates.y},${status.coordinates.z}`;
+
+    console.log(chalk.blue(`=== Navigation System ===`));
+    console.log(chalk.yellow(`Current position: ${currentPos}`));
+    console.log(chalk.yellow(`Destination: ${destination}`));
+    console.log(chalk.gray(`Player: ${status.name} (Fuel: ${status.fuel}/${status.maxFuel})`));
+
+    // Plot the course
+    console.log(chalk.blue(`\nPlotting course...`));
+    const courseResult = await plotCourse(playerId, currentPos, destination) as any;
+
+    console.log(chalk.green(`✓ Course plotted successfully!`));
+    console.log(chalk.green(`Total Steps: ${courseResult.path.steps.length}`));
+    console.log(chalk.green(`Total Fuel Cost: ${courseResult.path.totalFuelCost}`));
+    console.log(chalk.green(`Total Distance: ${courseResult.path.totalDistance.toFixed(1)}`));
+
+    // Execute autopilot
+    console.log(chalk.blue(`\n=== Autopilot Engaged ===`));
+    await executeAutopilot(playerId, courseResult.path.steps, false);
+
   } catch (error: any) {
     console.log(chalk.red(`✗ ${error.message}`));
   }

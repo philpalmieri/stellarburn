@@ -56,20 +56,6 @@ export function createNavigationRoutes() {
         });
       }
 
-      // Check for collision before moving
-      const collision = await navigationService.checkCollision(playerId, step.to);
-      
-      if (collision.hasCollision) {
-        return res.json({
-          success: false,
-          blocked: true,
-          collision: collision.obstruction,
-          message: `Autopilot stopped: ${collision.obstruction?.type} "${collision.obstruction?.name}" blocking path at ${coordinateToString(step.to)}`,
-          remainingPath: [step, ...remainingPath],
-          completed: false
-        });
-      }
-
       let directionVector;
       try {
         directionVector = getDirectionVector(step.direction);
@@ -82,15 +68,46 @@ export function createNavigationRoutes() {
         });
       }
 
+      // Execute the movement first
       let result;
       if (step.type === 'move') {
         result = await movementService.movePlayer(playerId, step.direction, directionVector);
+
+        // Check for collision AFTER moving (for regular movement within system)
+        const collision = await navigationService.checkCollision(playerId, result.newCoordinates);
+
+        if (collision.hasCollision) {
+          return res.json({
+            success: false,
+            blocked: true,
+            collision: collision.obstruction,
+            message: `Autopilot stopped: Collided with ${collision.obstruction?.type} "${collision.obstruction?.name}" at ${coordinateToString(result.newCoordinates)}`,
+            remainingPath: remainingPath,
+            completed: false
+          });
+        }
       } else if (step.type === 'jump') {
+        // For jumps, only check collision if jumping directly into a celestial body's zone
+        // Jumps land at system edges, so collision is less likely
         const jumpResult = await movementService.jumpPlayer(playerId, step.direction, directionVector);
         const systemScan = await scanningService.performSystemScan(playerId);
         result = { ...jumpResult, systemScan };
+
+        // Check collision after jump landing
+        const collision = await navigationService.checkCollision(playerId, jumpResult.newCoordinates);
+
+        if (collision.hasCollision) {
+          return res.json({
+            success: false,
+            blocked: true,
+            collision: collision.obstruction,
+            message: `Autopilot stopped: Jump landed in collision with ${collision.obstruction?.type} "${collision.obstruction?.name}"`,
+            remainingPath: remainingPath,
+            completed: false
+          });
+        }
       } else {
-        return res.status(400).json({ 
+        return res.status(400).json({
           success: false,
           error: `Invalid step type: ${step.type}`,
           completed: false,

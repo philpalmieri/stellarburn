@@ -126,6 +126,62 @@ export async function autopilot(playerId: string, path: any[]) {
     const error: any = await response.json();
     throw new Error(error.error || 'Autopilot failed');
   }
-  
+
   return await response.json();
+}
+
+// Database/Knowledge system functions
+
+export async function getKnownSystems(playerId: string) {
+  try {
+    const response = await fetch(`${API_BASE}/player/${playerId}/database`);
+
+    if (!response.ok) {
+      const error: any = await response.json();
+      throw new Error(error.error || `Failed to get known systems (${response.status})`);
+    }
+
+    return await response.json();
+  } catch (error: any) {
+    if (error.code === 'ECONNREFUSED') {
+      throw new Error('Cannot connect to API server. Make sure the API is running.');
+    }
+    throw new Error(error.message || 'Network error during database query');
+  }
+}
+
+export async function getAllKnownSystems(playerId: string) {
+  try {
+    const response = await fetch(`${API_BASE}/player/${playerId}/database/all`);
+
+    if (!response.ok) {
+      const error: any = await response.json();
+      throw new Error(error.error || `Failed to get all known systems (${response.status})`);
+    }
+
+    return await response.json();
+  } catch (error: any) {
+    if (error.code === 'ECONNREFUSED') {
+      throw new Error('Cannot connect to API server. Make sure the API is running.');
+    }
+    throw new Error(error.message || 'Network error during database query');
+  }
+}
+
+export async function getSystemDetails(playerId: string, coordinates: string) {
+  try {
+    const response = await fetch(`${API_BASE}/player/${playerId}/database/system/${coordinates}`);
+
+    if (!response.ok) {
+      const error: any = await response.json();
+      throw new Error(error.error || `Failed to get system details (${response.status})`);
+    }
+
+    return await response.json();
+  } catch (error: any) {
+    if (error.code === 'ECONNREFUSED') {
+      throw new Error('Cannot connect to API server. Make sure the API is running.');
+    }
+    throw new Error(error.message || 'Network error during system lookup');
+  }
 }
