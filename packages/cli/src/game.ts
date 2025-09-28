@@ -116,18 +116,37 @@ export async function plotCourse(playerId: string, from: string, to: string) {
 }
 
 export async function autopilot(playerId: string, path: any[]) {
-  const response = await fetch(`${API_BASE}/navigation/autopilot/${playerId}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ path })
-  });
-  
-  if (!response.ok) {
-    const error: any = await response.json();
-    throw new Error(error.error || 'Autopilot failed');
+  // Execute autopilot at CLI level by making individual move/jump calls
+  if (path.length === 0) {
+    return { success: true, completed: true, message: 'Already at destination' };
   }
 
-  return await response.json();
+  const step = path[0];
+  const remainingSteps = path.slice(1);
+
+  try {
+    let result;
+    if (step.type === 'move') {
+      result = await movePlayer(playerId, step.direction);
+    } else if (step.type === 'jump') {
+      result = await jumpPlayer(playerId, step.direction);
+    } else {
+      throw new Error(`Unknown step type: ${step.type}`);
+    }
+
+    // Check if we've completed the path
+    const completed = remainingSteps.length === 0;
+
+    return {
+      success: true,
+      completed,
+      message: completed ? 'Destination reached!' : `${step.type === 'move' ? 'Moved' : 'Jumped'} ${step.direction}`,
+      remainingSteps,
+      stepResult: result
+    };
+  } catch (error: any) {
+    throw new Error(`Autopilot step failed: ${error.message}`);
+  }
 }
 
 // Database/Knowledge system functions

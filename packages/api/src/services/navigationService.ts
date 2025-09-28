@@ -30,6 +30,24 @@ export class NavigationService {
   constructor(private db: any) {}
 
   /**
+   * Format coordinates for display - fix floating point precision issues
+   */
+  private formatCoordinate(value: number): number {
+    return Math.round(value * 10) / 10;
+  }
+
+  /**
+   * Format coordinates object for display
+   */
+  private formatCoordinates(coord: Coordinates3D): Coordinates3D {
+    return {
+      x: this.formatCoordinate(coord.x),
+      y: this.formatCoordinate(coord.y),
+      z: this.formatCoordinate(coord.z)
+    };
+  }
+
+  /**
    * Parse coordinate string with validation
    */
   private parseCoordinates(coordStr: string): Coordinates3D {
@@ -81,7 +99,7 @@ export class NavigationService {
   }
 
   /**
-   * Get system coordinates (floor values)
+   * Get system coordinates (consistent with other services)
    */
   private getSystemCoords(coord: Coordinates3D): Coordinates3D {
     return {
@@ -189,13 +207,20 @@ export class NavigationService {
       const next = { ...current };
       next.x += current.x < toSystem.x ? 1 : -1;
 
+      // Jump lands at system center (system coordinate + 0.5)
+      const landingCoords = {
+        x: next.x + 0.5,
+        y: current.y + 0.5,
+        z: current.z + 0.5
+      };
+
       steps.push({
         type: 'jump',
         direction,
-        from: { ...current },
-        to: { ...next },
+        from: this.formatCoordinates(current),
+        to: this.formatCoordinates(landingCoords),
         fuelCost: 1,
-        description: `Jump ${direction} to system ${coordinateToString(next)}`
+        description: `Jump ${direction} to system ${coordinateToString(this.formatCoordinates(next))}`
       });
 
       current = next;
@@ -207,13 +232,20 @@ export class NavigationService {
       const next = { ...current };
       next.y += current.y < toSystem.y ? 1 : -1;
 
+      // Jump lands at system center (system coordinate + 0.5)
+      const landingCoords = {
+        x: current.x + 0.5,
+        y: next.y + 0.5,
+        z: current.z + 0.5
+      };
+
       steps.push({
         type: 'jump',
         direction,
-        from: { ...current },
-        to: { ...next },
+        from: this.formatCoordinates(current),
+        to: this.formatCoordinates(landingCoords),
         fuelCost: 1,
-        description: `Jump ${direction} to system ${coordinateToString(next)}`
+        description: `Jump ${direction} to system ${coordinateToString(this.formatCoordinates(next))}`
       });
 
       current = next;
@@ -225,13 +257,20 @@ export class NavigationService {
       const next = { ...current };
       next.z += current.z < toSystem.z ? 1 : -1;
 
+      // Jump lands at system center (system coordinate + 0.5)
+      const landingCoords = {
+        x: current.x + 0.5,
+        y: current.y + 0.5,
+        z: next.z + 0.5
+      };
+
       steps.push({
         type: 'jump',
         direction,
-        from: { ...current },
-        to: { ...next },
+        from: this.formatCoordinates(current),
+        to: this.formatCoordinates(landingCoords),
         fuelCost: 1,
-        description: `Jump ${direction} to system ${coordinateToString(next)}`
+        description: `Jump ${direction} to system ${coordinateToString(this.formatCoordinates(next))}`
       });
 
       current = next;
@@ -241,66 +280,79 @@ export class NavigationService {
   }
 
   /**
-   * Plan movement within a system
+   * Plan movement within a system - treating coordinates as exact decimal positions
    */
   private planSystemMovement(from: Coordinates3D, to: Coordinates3D): NavigationStep[] {
     const steps: NavigationStep[] = [];
     let current = { ...from };
-    const tolerance = 0.05;
+    const tolerance = 0.001; // Much smaller tolerance for exact matching
     const stepSize = 0.1;
 
-    // Handle X axis
+    // Handle X axis - move in exact 0.1 increments toward target
     while (Math.abs(current.x - to.x) > tolerance) {
       const direction = current.x < to.x ? 'east' : 'west';
       const next = { ...current };
-      const step = current.x < to.x ? stepSize : -stepSize;
-      next.x = Math.round((current.x + step) * 10) / 10;
+
+      // Calculate exact step to target, but limit to stepSize increments
+      const remaining = to.x - current.x;
+      const step = Math.abs(remaining) < stepSize ? remaining :
+                   (remaining > 0 ? stepSize : -stepSize);
+
+      next.x = current.x + step;
 
       steps.push({
         type: 'move',
         direction,
-        from: { ...current },
-        to: { ...next },
+        from: this.formatCoordinates(current),
+        to: this.formatCoordinates(next),
         fuelCost: 1,
-        description: `Move ${direction} to ${coordinateToString(next)}`
+        description: `Move ${direction} to ${coordinateToString(this.formatCoordinates(next))}`
       });
 
       current = next;
     }
 
-    // Handle Y axis
+    // Handle Y axis - move in exact 0.1 increments toward target
     while (Math.abs(current.y - to.y) > tolerance) {
       const direction = current.y < to.y ? 'north' : 'south';
       const next = { ...current };
-      const step = current.y < to.y ? stepSize : -stepSize;
-      next.y = Math.round((current.y + step) * 10) / 10;
+
+      const remaining = to.y - current.y;
+      const step = Math.abs(remaining) < stepSize ? remaining :
+                   (remaining > 0 ? stepSize : -stepSize);
+
+      next.y = current.y + step;
 
       steps.push({
         type: 'move',
         direction,
-        from: { ...current },
-        to: { ...next },
+        from: this.formatCoordinates(current),
+        to: this.formatCoordinates(next),
         fuelCost: 1,
-        description: `Move ${direction} to ${coordinateToString(next)}`
+        description: `Move ${direction} to ${coordinateToString(this.formatCoordinates(next))}`
       });
 
       current = next;
     }
 
-    // Handle Z axis
+    // Handle Z axis - move in exact 0.1 increments toward target
     while (Math.abs(current.z - to.z) > tolerance) {
       const direction = current.z < to.z ? 'up' : 'down';
       const next = { ...current };
-      const step = current.z < to.z ? stepSize : -stepSize;
-      next.z = Math.round((current.z + step) * 10) / 10;
+
+      const remaining = to.z - current.z;
+      const step = Math.abs(remaining) < stepSize ? remaining :
+                   (remaining > 0 ? stepSize : -stepSize);
+
+      next.z = current.z + step;
 
       steps.push({
         type: 'move',
         direction,
-        from: { ...current },
-        to: { ...next },
+        from: this.formatCoordinates(current),
+        to: this.formatCoordinates(next),
         fuelCost: 1,
-        description: `Move ${direction} to ${coordinateToString(next)}`
+        description: `Move ${direction} to ${coordinateToString(this.formatCoordinates(next))}`
       });
 
       current = next;
@@ -313,10 +365,26 @@ export class NavigationService {
    * Calculate edge coordinate for system exit
    */
   private calculateEdgeCoordinate(from: Coordinates3D, system: Coordinates3D): Coordinates3D {
+    // For negative systems, we need to handle edge calculation properly
+    // System ranges: system 1 = [1.0, 2.0), system -1 = [-1.0, 0.0), system -6 = [-6.0, -5.0)
+    const getEdgeCoordinate = (currentPos: number, systemCoord: number): number => {
+      const systemStart = systemCoord;
+      const systemEnd = systemCoord + 1;
+      const systemMid = systemCoord + 0.5;
+
+      // If we're in the lower half of the system, go to the start edge
+      // If we're in the upper half, go to the end edge (with some margin)
+      if (currentPos < systemMid) {
+        return systemStart + 0.1; // Near the start of the system
+      } else {
+        return systemEnd - 0.1; // Near the end of the system
+      }
+    };
+
     return {
-      x: from.x < system.x + 0.5 ? system.x : system.x + 0.9,
-      y: from.y < system.y + 0.5 ? system.y : system.y + 0.9,
-      z: from.z < system.z + 0.5 ? system.z : system.z + 0.9
+      x: getEdgeCoordinate(from.x, system.x),
+      y: getEdgeCoordinate(from.y, system.y),
+      z: getEdgeCoordinate(from.z, system.z)
     };
   }
 
@@ -336,28 +404,108 @@ export class NavigationService {
       const to = this.parseCoordinates(toStr);
 
       let allSteps: NavigationStep[] = [];
+      let current = { ...from };
 
-      if (this.sameSystem(from, to)) {
+      const fromSystem = this.getSystemCoords(from);
+      const toSystem = this.getSystemCoords(to);
+
+      // Check which axes need system jumps
+      const needsJump = {
+        x: fromSystem.x !== toSystem.x,
+        y: fromSystem.y !== toSystem.y,
+        z: fromSystem.z !== toSystem.z
+      };
+
+      const needsAnyJump = needsJump.x || needsJump.y || needsJump.z;
+
+      if (!needsAnyJump) {
         // Same system - just move within system
-        allSteps = this.planSystemMovement(from, to);
+        allSteps = this.planSystemMovement(current, to);
       } else {
-        // Different systems - need to jump
-        const fromSystem = this.getSystemCoords(from);
-        const toSystem = this.getSystemCoords(to);
+        // Need jumps on some axes - handle each axis independently
 
-        // Move to system edge if not already there
-        if (!this.isAtSystemCoordinate(from, fromSystem)) {
-          const edgeCoord = this.calculateEdgeCoordinate(from, fromSystem);
-          allSteps.push(...this.planSystemMovement(from, edgeCoord));
+        // First, handle X axis jumps if needed
+        if (needsJump.x) {
+          while (this.getSystemCoords(current).x !== toSystem.x) {
+            const currentSysX = this.getSystemCoords(current).x;
+            const direction = currentSysX < toSystem.x ? 'east' : 'west';
+            const nextSysX = currentSysX + (currentSysX < toSystem.x ? 1 : -1);
+
+            // Land at center of new system
+            const landingCoord = {
+              x: nextSysX + 0.5,
+              y: current.y,
+              z: current.z
+            };
+
+            allSteps.push({
+              type: 'jump',
+              direction,
+              from: this.formatCoordinates(current),
+              to: this.formatCoordinates(landingCoord),
+              fuelCost: 1,
+              description: `Jump ${direction} to system ${nextSysX},${this.getSystemCoords(current).y},${this.getSystemCoords(current).z}`
+            });
+
+            current = landingCoord;
+          }
         }
 
-        // Jump between systems
-        allSteps.push(...this.planSystemJumps(fromSystem, toSystem));
+        // Then handle Y axis jumps if needed
+        if (needsJump.y) {
+          while (this.getSystemCoords(current).y !== toSystem.y) {
+            const currentSysY = this.getSystemCoords(current).y;
+            const direction = currentSysY < toSystem.y ? 'north' : 'south';
+            const nextSysY = currentSysY + (currentSysY < toSystem.y ? 1 : -1);
 
-        // Move to final destination within target system
-        if (!this.isAtSystemCoordinate(to, toSystem)) {
-          const entryCoord: Coordinates3D = { x: toSystem.x, y: toSystem.y, z: toSystem.z };
-          allSteps.push(...this.planSystemMovement(entryCoord, to));
+            const landingCoord = {
+              x: current.x,
+              y: nextSysY + 0.5,
+              z: current.z
+            };
+
+            allSteps.push({
+              type: 'jump',
+              direction,
+              from: this.formatCoordinates(current),
+              to: this.formatCoordinates(landingCoord),
+              fuelCost: 1,
+              description: `Jump ${direction} to system ${this.getSystemCoords(current).x},${nextSysY},${this.getSystemCoords(current).z}`
+            });
+
+            current = landingCoord;
+          }
+        }
+
+        // Finally handle Z axis jumps if needed
+        if (needsJump.z) {
+          while (this.getSystemCoords(current).z !== toSystem.z) {
+            const currentSysZ = this.getSystemCoords(current).z;
+            const direction = currentSysZ < toSystem.z ? 'up' : 'down';
+            const nextSysZ = currentSysZ + (currentSysZ < toSystem.z ? 1 : -1);
+
+            const landingCoord = {
+              x: current.x,
+              y: current.y,
+              z: nextSysZ + 0.5
+            };
+
+            allSteps.push({
+              type: 'jump',
+              direction,
+              from: this.formatCoordinates(current),
+              to: this.formatCoordinates(landingCoord),
+              fuelCost: 1,
+              description: `Jump ${direction} to system ${this.getSystemCoords(current).x},${this.getSystemCoords(current).y},${nextSysZ}`
+            });
+
+            current = landingCoord;
+          }
+        }
+
+        // Finally, move to the exact destination within the target system
+        if (current.x !== to.x || current.y !== to.y || current.z !== to.z) {
+          allSteps.push(...this.planSystemMovement(current, to));
         }
       }
 

@@ -20,9 +20,9 @@ export class MovementService {
     }
     
     const newCoordinates: Coordinates3D = {
-      x: Math.round((player.coordinates.x + directionVector.x) * 10) / 10,
-      y: Math.round((player.coordinates.y + directionVector.y) * 10) / 10,
-      z: Math.round((player.coordinates.z + directionVector.z) * 10) / 10
+      x: player.coordinates.x + directionVector.x,
+      y: player.coordinates.y + directionVector.y,
+      z: player.coordinates.z + directionVector.z
     };
     
     await this.db.collection('players').updateOne(
@@ -60,19 +60,27 @@ export class MovementService {
     }
     
     const currentCoords = player.coordinates;
-    const nextSystemCoords = {
-      x: Math.floor(currentCoords.x) + (directionVector.x > 0 ? 1 : directionVector.x < 0 ? -1 : 0),
-      y: Math.floor(currentCoords.y) + (directionVector.y > 0 ? 1 : directionVector.y < 0 ? -1 : 0),
-      z: Math.floor(currentCoords.z) + (directionVector.z > 0 ? 1 : directionVector.z < 0 ? -1 : 0)
+
+    // Use consistent system coordinate calculation (same as navigation service)
+    const getCurrentSystemCoord = (coord: number): number => Math.floor(coord);
+
+    const currentSystem = {
+      x: getCurrentSystemCoord(currentCoords.x),
+      y: getCurrentSystemCoord(currentCoords.y),
+      z: getCurrentSystemCoord(currentCoords.z)
     };
-    
+
+    const nextSystemCoords = {
+      x: currentSystem.x + (directionVector.x > 0 ? 1 : directionVector.x < 0 ? -1 : 0),
+      y: currentSystem.y + (directionVector.y > 0 ? 1 : directionVector.y < 0 ? -1 : 0),
+      z: currentSystem.z + (directionVector.z > 0 ? 1 : directionVector.z < 0 ? -1 : 0)
+    };
+
+    // Landing coordinates: enter at system center (0.5 offset from system coordinate)
     const landingCoords = {
-      x: directionVector.x > 0 ? nextSystemCoords.x : 
-          directionVector.x < 0 ? nextSystemCoords.x + 0.9 : currentCoords.x,
-      y: directionVector.y > 0 ? nextSystemCoords.y :
-          directionVector.y < 0 ? nextSystemCoords.y + 0.9 : currentCoords.y,
-      z: directionVector.z > 0 ? nextSystemCoords.z :
-          directionVector.z < 0 ? nextSystemCoords.z + 0.9 : currentCoords.z
+      x: directionVector.x !== 0 ? nextSystemCoords.x + 0.5 : currentCoords.x,
+      y: directionVector.y !== 0 ? nextSystemCoords.y + 0.5 : currentCoords.y,
+      z: directionVector.z !== 0 ? nextSystemCoords.z + 0.5 : currentCoords.z
     };
     
     await this.db.collection('players').updateOne(

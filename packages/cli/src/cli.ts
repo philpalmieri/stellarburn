@@ -654,13 +654,8 @@ async function executeAutopilot(playerId: string, steps: any[], stepMode: boolea
           break;
         } else {
           console.log(chalk.green(`✓ ${result.message}`));
-          remainingSteps = result.remainingPath || [];
-
-          if (result.step) {
-            const stepType = result.step.type === 'jump' ? chalk.cyan('JUMP') : chalk.white('MOVE');
-            const direction = chalk.yellow(result.step.direction.toUpperCase());
-            console.log(`   ${stepType} ${direction} - ${remainingSteps.length} steps remaining`);
-          }
+          remainingSteps = result.remainingSteps || [];
+          console.log(`   ${remainingSteps.length} steps remaining`);
         }
       } else {
         if (result.blocked) {
