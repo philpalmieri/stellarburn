@@ -26,11 +26,11 @@ function UniverseView() {
 
   const fetchUniverseData = useCallback(async () => {
     try {
-      const statsResponse = await fetch('/api/universe');
+      const statsResponse = await fetch('/api/universe/');
       const statsData = await statsResponse.json();
       setStats(statsData);
 
-      const sectorsResponse = await fetch('/api/sectors');
+      const sectorsResponse = await fetch('/api/universe/sectors');
       const sectorsData = await sectorsResponse.json();
       setSectors(sectorsData);
 

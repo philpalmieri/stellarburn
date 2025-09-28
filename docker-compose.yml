@@ -83,7 +83,7 @@ services:
       context: .
       dockerfile: docker/node/Dockerfile
     container_name: stellarburn-cli
-    restart: "no"
+    restart: unless-stopped
     environment:
       NODE_ENV: development
     volumes:
@@ -95,6 +95,9 @@ services:
       - stellarburn-network
     profiles:
       - tools
+    command: tail -f /dev/null  # Keep container running
+    stdin_open: true
+    tty: true
     
 networks:
   stellarburn-network:

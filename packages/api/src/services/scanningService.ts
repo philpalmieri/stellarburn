@@ -2,11 +2,10 @@ import { Coordinates3D, coordinateToString } from '@stellarburn/shared';
 import { ExplorationService } from './explorationService.js';
 
 export class ScanningService {
-  private explorationService: ExplorationService;
-
-  constructor(private db: any) {
-    this.explorationService = new ExplorationService(db);
-  }
+  constructor(
+    private db: any,
+    private explorationService: ExplorationService
+  ) {}
 
   async performSystemScan(playerId: string) {
     const player = await this.db.collection('players').findOne({ id: playerId });

@@ -20,7 +20,7 @@ function PlayerView() {
   useEffect(() => {
     const fetchPlayers = async () => {
       try {
-        const response = await fetch('/api/players');
+        const response = await fetch('/api/universe/players');
         const playersData = await response.json();
         setPlayers(playersData);
         setLoading(false);
