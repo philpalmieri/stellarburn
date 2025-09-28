@@ -2,7 +2,7 @@
 
 import { Command } from 'commander';
 import chalk from 'chalk';
-import { createPlayer, getPlayerStatus, movePlayer, scanArea, jumpPlayer, systemScan, plotCourse, autopilot, getKnownSystems, getAllKnownSystems, getSystemDetails, launchProbe, getActiveProbes } from './game.js';
+import { createPlayer, getPlayerStatus, movePlayer, scanArea, jumpPlayer, systemScan, plotCourse, autopilot, getKnownSystems, getAllKnownSystems, getSystemDetails, launchProbe, getActiveProbes, findNearest } from './game.js';
 
 // Reusable display functions for scan results
 function displayCurrentZone(zone: any) {
@@ -211,21 +211,31 @@ program
           console.log(chalk.yellow(`System: ${systemResult.systemCoordinates.x},${systemResult.systemCoordinates.y},${systemResult.systemCoordinates.z}`));
           
           if (systemResult.objects.length > 0) {
-            console.log(chalk.white(`Objects in system:`));
+            console.log(chalk.white(`Objects in system (sorted by distance):`));
             systemResult.objects.forEach((obj: any) => {
-              const color = obj.type === 'star' ? chalk.red : 
+              const color = obj.type === 'star' ? chalk.red :
                            obj.type === 'planet' ? chalk.green :
                            obj.type === 'station' ? chalk.cyan : chalk.gray;
-              console.log(`  ${color(obj.type)}: ${obj.name} at ${obj.coordinates.x},${obj.coordinates.y},${obj.coordinates.z} (${obj.size} zones)`);
+              const distanceInfo = obj.distance ? ` (${obj.distance.toFixed(2)} units away, ${obj.size} zones)` : ` (${obj.size} zones)`;
+              console.log(`  ${color(obj.type)}: ${obj.name} at ${obj.coordinates.x},${obj.coordinates.y},${obj.coordinates.z}${distanceInfo}`);
             });
           } else {
             console.log(chalk.gray(`Empty system`));
           }
           
           if (systemResult.otherPlayers.length > 0) {
-            console.log(chalk.magenta(`\nOther ships:`));
+            console.log(chalk.magenta(`\nOther ships (sorted by distance):`));
             systemResult.otherPlayers.forEach((player: any) => {
-              console.log(`  ${chalk.magenta(player.name)} at ${player.coordinates.x},${player.coordinates.y},${player.coordinates.z}`);
+              const distanceInfo = player.distance ? ` (${player.distance.toFixed(2)} units away)` : '';
+              console.log(`  ${chalk.magenta(player.name)} at ${player.coordinates.x},${player.coordinates.y},${player.coordinates.z}${distanceInfo}`);
+            });
+          }
+
+          if (systemResult.probes && systemResult.probes.length > 0) {
+            console.log(chalk.yellow(`\nProbes in system (sorted by distance):`));
+            systemResult.probes.forEach((probe: any) => {
+              const distanceInfo = probe.distance ? ` (${probe.distance.toFixed(2)} units away)` : '';
+              console.log(`  ${chalk.yellow('probe')}: ID ${probe.id} (fuel: ${probe.fuel})${distanceInfo}`);
             });
           }
           break;
@@ -320,6 +330,16 @@ program
           await gotoDestination(playerId, goDestination);
           break;
 
+        // Nearest command
+        case 'nearest':
+          if (!target) {
+            console.log(chalk.red('✗ Nearest requires entity type'));
+            console.log(chalk.gray('Usage: stellarburn <playerId> nearest station (or planet/star/player/probe)'));
+            break;
+          }
+          await findNearestEntity(playerId, target);
+          break;
+
         default:
           console.log(chalk.red(`Unknown action: ${action}`));
           console.log(chalk.blue(`\nAvailable actions for ${playerId}:`));
@@ -329,6 +349,7 @@ program
           console.log(chalk.gray(`  db               - Show known systems with objects`));
           console.log(chalk.gray(`  db "x,y,z"       - Show specific system details`));
           console.log(chalk.gray(`  dball            - Show all known systems`));
+          console.log(chalk.gray(`  nearest station  - Find nearest station/planet/star/player/probe`));
           console.log(chalk.gray(`  plot "x,y,z"     - Plot course to coordinates`));
           console.log(chalk.gray(`  go "x,y,z"       - Autopilot to coordinates`));
           console.log(chalk.gray(`  n,s,e,w,u,d      - Move in direction`));
@@ -410,7 +431,7 @@ async function showKnownSystems(playerId: string) {
 
     const playerCoords = result.player;
 
-    console.log(chalk.blue(`\n=== Systems with Objects ===`));
+    console.log(chalk.blue(`\n=== Systems with Objects (sorted by distance) ===`));
     result.systems.forEach((system: any, index: number) => {
       // Parse system coordinates
       const [x, y, z] = system.coordinates.split(',').map(Number);
@@ -447,7 +468,7 @@ async function showKnownSystems(playerId: string) {
 async function showAllKnownSystems(playerId: string) {
   try {
     const result = await getAllKnownSystems(playerId) as any;
-    console.log(chalk.blue(`=== Complete Known Systems Database ===`));
+    console.log(chalk.blue(`=== Complete Known Systems Database (sorted by distance) ===`));
     console.log(chalk.yellow(`Total Systems: ${result.totalKnownSystems}`));
     console.log(chalk.gray(`Player Location: ${result.player.x},${result.player.y},${result.player.z}`));
 
@@ -743,6 +764,45 @@ async function showActiveProbes(playerId: string) {
     });
 
     console.log(chalk.blue(`\nProbes are visible as bright orange dots in the universe map.`));
+  } catch (error: any) {
+    console.log(chalk.red(`✗ ${error.message}`));
+  }
+}
+
+async function findNearestEntity(playerId: string, entityType: string) {
+  try {
+    const result = await findNearest(playerId, entityType);
+
+    if (!result.nearest) {
+      console.log(chalk.yellow(`=== Nearest ${entityType.toUpperCase()} ===`));
+      console.log(chalk.gray(`No ${entityType} found in your known systems.`));
+      console.log(chalk.blue(`🔭 Explore more systems to discover ${entityType}s!`));
+      return;
+    }
+
+    const nearest = result.nearest;
+    console.log(chalk.yellow(`=== Nearest ${entityType.toUpperCase()} ===`));
+
+    // Display entity info using same style as db command
+    const color = nearest.type === 'star' ? chalk.red :
+                 nearest.type === 'planet' ? chalk.green :
+                 nearest.type === 'station' ? chalk.cyan :
+                 nearest.type === 'player' ? chalk.magenta :
+                 nearest.type === 'probe' ? chalk.yellow : chalk.gray;
+
+    console.log(`${color(nearest.type)}: ${nearest.name}`);
+    console.log(`Distance: ${chalk.white(nearest.distance.toFixed(2))} units`);
+    console.log(`Coordinates: ${chalk.white(`${nearest.coordinates.x},${nearest.coordinates.y},${nearest.coordinates.z}`)}`);
+
+    if (nearest.systemCoordinates) {
+      console.log(`System: ${chalk.gray(`${nearest.systemCoordinates.x},${nearest.systemCoordinates.y},${nearest.systemCoordinates.z}`)}`);
+    }
+
+    // Show routing suggestion
+    console.log(chalk.blue(`\n💡 To go there:`));
+    console.log(chalk.cyan(`   stellarburn ${playerId} plot "${nearest.coordinates.x},${nearest.coordinates.y},${nearest.coordinates.z}"`));
+    console.log(chalk.cyan(`   stellarburn ${playerId} go "${nearest.coordinates.x},${nearest.coordinates.y},${nearest.coordinates.z}"`));
+
   } catch (error: any) {
     console.log(chalk.red(`✗ ${error.message}`));
   }

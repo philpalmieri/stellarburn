@@ -223,3 +223,21 @@ export async function getActiveProbes(playerId: string): Promise<Probe[]> {
     throw new Error(error.message || 'Network error during probe query');
   }
 }
+
+export async function findNearest(playerId: string, entityType: string): Promise<any> {
+  try {
+    const response = await fetch(`${API_BASE}/player/${playerId}/nearest/${entityType}`);
+
+    if (!response.ok) {
+      const error: any = await response.json();
+      throw new Error(error.error || `Failed to find nearest ${entityType} (${response.status})`);
+    }
+
+    return await response.json();
+  } catch (error: any) {
+    if (error.code === 'ECONNREFUSED') {
+      throw new Error('Cannot connect to API server. Make sure the API is running.');
+    }
+    throw new Error(error.message || 'Network error during nearest search');
+  }
+}

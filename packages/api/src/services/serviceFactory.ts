@@ -6,6 +6,7 @@ import { ScanningService } from './scanningService.js';
 import { ExplorationService } from './explorationService.js';
 import { ProbeService } from './probeService.js';
 import { ProbeScheduler } from './probeScheduler.js';
+import { NearestService } from './nearestService.js';
 
 export interface ServiceContainer {
   navigationService: NavigationService;
@@ -14,6 +15,7 @@ export interface ServiceContainer {
   explorationService: ExplorationService;
   probeService: ProbeService;
   probeScheduler: ProbeScheduler;
+  nearestService: NearestService;
 }
 
 let servicesCache: ServiceContainer | null = null;
@@ -28,6 +30,7 @@ export function getServices(dbName: string = 'stellarburn'): ServiceContainer {
     const navigationService = new NavigationService(db);
     const probeService = new ProbeService(db, scanningService, explorationService);
     const probeScheduler = new ProbeScheduler(probeService);
+    const nearestService = new NearestService(db, explorationService);
 
     servicesCache = {
       navigationService,
@@ -35,7 +38,8 @@ export function getServices(dbName: string = 'stellarburn'): ServiceContainer {
       scanningService,
       explorationService,
       probeService,
-      probeScheduler
+      probeScheduler,
+      nearestService
     };
   }
 

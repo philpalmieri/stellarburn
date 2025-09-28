@@ -4,6 +4,32 @@ import { getServices } from '../services/serviceFactory.js';
 import { DIRECTIONS, getDirectionVector } from '../constants/directions.js';
 import { coordinateToString } from '@stellarburn/shared';
 
+// Functional helper for distance calculations and sorting
+const calculateDistance3D = (from: any) => (to: any): number => {
+  const dx = to.x - from.x;
+  const dy = to.y - from.y;
+  const dz = to.z - from.z;
+  return Math.sqrt(dx * dx + dy * dy + dz * dz);
+};
+
+const addDistanceToObject = (playerCoords: any) => (obj: any) => ({
+  ...obj,
+  distance: calculateDistance3D(playerCoords)(obj.coordinates)
+});
+
+const addDistanceToSystem = (playerCoords: any) => (system: any) => {
+  const systemDistance = calculateDistance3D(playerCoords)(system.coord);
+  return {
+    ...system,
+    distance: systemDistance,
+    objects: system.staticObjects ? system.staticObjects
+      .map(addDistanceToObject(playerCoords))
+      .sort((a: any, b: any) => a.distance - b.distance) : []
+  };
+};
+
+const sortByDistance = (items: any[]) => items.sort((a, b) => a.distance - b.distance);
+
 export function createPlayerRoutes() {
   const router = Router();
 
@@ -171,6 +197,38 @@ export function createPlayerRoutes() {
       const { playerId } = req.params;
       const { scanningService } = getServicesLazy();
       const result = await scanningService.performSystemScan(playerId);
+
+      // Get player coordinates for distance calculation
+      const db = getMongo('stellarburn');
+      const player = await db.collection('players').findOne({ id: playerId });
+
+      if (player && result.objects) {
+        // Sort objects by distance from player
+        const objectsWithDistance = result.objects
+          .map(addDistanceToObject(player.coordinates));
+        result.objects = sortByDistance(objectsWithDistance);
+      }
+
+      // Sort other players by distance
+      if (player && result.otherPlayers) {
+        const playersWithDistance = result.otherPlayers
+          .map((p: any) => ({
+            ...p,
+            distance: calculateDistance3D(player.coordinates)(p.coordinates)
+          }));
+        result.otherPlayers = sortByDistance(playersWithDistance);
+      }
+
+      // Sort probes by distance
+      if (player && result.probes) {
+        const probesWithDistance = result.probes
+          .map((p: any) => ({
+            ...p,
+            distance: calculateDistance3D(player.coordinates)(p.coordinates)
+          }));
+        result.probes = sortByDistance(probesWithDistance);
+      }
+
       res.json(result);
     } catch (error) {
       console.error('System scan error:', error);
@@ -229,6 +287,53 @@ export function createPlayerRoutes() {
     }
   });
 
+  // Nearest entity finder
+  router.get('/:playerId/nearest/:entityType', async (req, res) => {
+    try {
+      const { playerId, entityType } = req.params;
+      const { nearestService } = getServicesLazy();
+
+      let result;
+      switch (entityType.toLowerCase()) {
+        case 'station':
+          result = await nearestService.findNearestStation(playerId);
+          break;
+        case 'planet':
+          result = await nearestService.findNearestPlanet(playerId);
+          break;
+        case 'star':
+          result = await nearestService.findNearestStar(playerId);
+          break;
+        case 'player':
+        case 'ship':
+          result = await nearestService.findNearestPlayer(playerId);
+          break;
+        case 'probe':
+          result = await nearestService.findNearestProbe(playerId);
+          break;
+        default:
+          return res.status(400).json({
+            error: 'Invalid entity type. Use: station, planet, star, player/ship, or probe'
+          });
+      }
+
+      if (!result) {
+        return res.json({
+          message: `No ${entityType} found in your known systems`,
+          nearest: null
+        });
+      }
+
+      res.json({
+        message: `Nearest ${entityType} found`,
+        nearest: result
+      });
+    } catch (error) {
+      console.error('Nearest entity error:', error);
+      res.status(500).json({ error: error instanceof Error ? error.message : 'Failed to find nearest entity' });
+    }
+  });
+
   // Database/Knowledge system endpoints
 
   // Get known systems with objects (default behavior - 'db')
@@ -243,19 +348,27 @@ export function createPlayerRoutes() {
         system.staticObjects && system.staticObjects.length > 0
       );
 
+      // Add distances and sort by closest first
+      const systemsWithDistances = systemsWithObjects
+        .map(addDistanceToSystem(result.playerCoordinates));
+
+      const sortedSystems = sortByDistance(systemsWithDistances);
+
       res.json({
         player: result.playerCoordinates,
         totalKnownSystems: result.knownSystems.length,
         systemsWithObjects: systemsWithObjects.length,
-        systems: systemsWithObjects.map((system: any) => ({
+        systems: sortedSystems.map((system: any) => ({
           coordinates: system.coordinates,
           coord: system.coord,
+          distance: system.distance,
           objectCount: system.staticObjects.length,
-          objects: system.staticObjects.map((obj: any) => ({
+          objects: system.objects.map((obj: any) => ({
             type: obj.type,
             name: obj.name,
             size: obj.size,
-            coordinates: obj.coordinates
+            coordinates: obj.coordinates,
+            distance: obj.distance
           }))
         }))
       });
@@ -272,20 +385,28 @@ export function createPlayerRoutes() {
       const { explorationService } = getServicesLazy();
       const result = await explorationService.getKnownSystems(playerId);
 
+      // Add distances and sort all systems by closest first
+      const systemsWithDistances = result.knownSystems
+        .map(addDistanceToSystem(result.playerCoordinates));
+
+      const sortedSystems = sortByDistance(systemsWithDistances);
+
       res.json({
         player: result.playerCoordinates,
         totalKnownSystems: result.knownSystems.length,
-        systems: result.knownSystems.map((system: any) => ({
+        systems: sortedSystems.map((system: any) => ({
           coordinates: system.coordinates,
           coord: system.coord,
+          distance: system.distance,
           isEmpty: !system.staticObjects || system.staticObjects.length === 0,
           objectCount: system.staticObjects ? system.staticObjects.length : 0,
-          objects: system.staticObjects ? system.staticObjects.map((obj: any) => ({
+          objects: system.objects.map((obj: any) => ({
             type: obj.type,
             name: obj.name,
             size: obj.size,
-            coordinates: obj.coordinates
-          })) : []
+            coordinates: obj.coordinates,
+            distance: obj.distance
+          }))
         }))
       });
     } catch (error) {
