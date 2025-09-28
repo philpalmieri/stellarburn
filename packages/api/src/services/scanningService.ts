@@ -1,5 +1,6 @@
 import { Coordinates3D, coordinateToString } from '@stellarburn/shared';
 import { ExplorationService } from './explorationService.js';
+import { getItemById } from '../data/tradeItems.js';
 
 // Functional helper functions using currying and higher-order functions
 const createDistanceCalculator = (targetCoords: Coordinates3D) =>
@@ -57,6 +58,27 @@ const findProbesNear = (db: any) => (coords: Coordinates3D) => async (scanRange:
   }));
 };
 
+// Helper function to enrich station data with inventory details
+const enrichStationData = (obj: any) => {
+  if (obj.type === 'station') {
+    const enrichedInventory = obj.inventory?.map((inv: any) => {
+      const item = getItemById(inv.itemId);
+      return {
+        ...inv,
+        itemName: item?.name || 'Unknown Item',
+        itemCategory: item?.category || 'unknown'
+      };
+    }).slice(0, 5) || []; // Limit to first 5 items for scan display
+
+    return {
+      ...obj,
+      enrichedInventory,
+      inventoryCount: obj.inventory?.length || 0
+    };
+  }
+  return obj;
+};
+
 export class ScanningService {
   constructor(
     private db: any,
@@ -102,7 +124,7 @@ export class ScanningService {
 
     return {
       systemCoordinates: systemCoords,
-      objects: systemSector ? systemSector.staticObjects : [],
+      objects: systemSector ? systemSector.staticObjects.map(enrichStationData) : [],
       otherPlayers: systemPlayers.map((p: any) => ({
         name: p.name,
         coordinates: p.coordinates
@@ -143,7 +165,7 @@ export class ScanningService {
     const findActiveProbes = findProbesNear(this.db);
 
     // Scan current zone - use larger range for objects you're right next to
-    const currentObjects = findObjectsInSystemSector(currentCoords)(0.1);
+    const currentObjects = findObjectsInSystemSector(currentCoords)(0.1).map(enrichStationData);
     const currentPlayers = await findPlayersExcludingCurrent(currentCoords)(0.05);
     const currentProbes = await findActiveProbes(currentCoords)(0.05);
 
@@ -162,7 +184,7 @@ export class ScanningService {
     for (const [direction, coords] of Object.entries(adjacentCoords)) {
       adjacentZones[direction] = {
         coordinates: coords,
-        objects: findObjectsInSystemSector(coords)(0.05),
+        objects: findObjectsInSystemSector(coords)(0.05).map(enrichStationData),
         otherPlayers: await findPlayersExcludingCurrent(coords)(0.08), // Larger range to detect entities in adjacent zones
         probes: await findActiveProbes(coords)(0.08)
       };

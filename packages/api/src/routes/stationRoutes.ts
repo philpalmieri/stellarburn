@@ -59,9 +59,55 @@ export function createStationRoutes() {
     }
   });
 
-  // TODO: Add buy/sell endpoints when trade system is ready
-  // router.post('/:playerId/buy', ...)
-  // router.post('/:playerId/sell', ...)
+  // Buy item from station
+  router.post('/:playerId/buy', async (req, res) => {
+    try {
+      const { playerId } = req.params;
+      const { itemId, quantity } = req.body;
+      const { stationService, stationInventoryService } = getServices();
+
+      if (!itemId || !quantity || quantity <= 0) {
+        return res.status(400).json({ error: 'Invalid itemId or quantity' });
+      }
+
+      const result = await stationService.buyFromStation(playerId, itemId, quantity);
+      res.json(result);
+    } catch (error) {
+      console.error('Buy error:', error);
+      res.status(400).json({ error: error instanceof Error ? error.message : 'Failed to buy item' });
+    }
+  });
+
+  // Sell item to station
+  router.post('/:playerId/sell', async (req, res) => {
+    try {
+      const { playerId } = req.params;
+      const { itemId, quantity } = req.body;
+      const { stationService } = getServices();
+
+      if (!itemId || !quantity || quantity <= 0) {
+        return res.status(400).json({ error: 'Invalid itemId or quantity' });
+      }
+
+      const result = await stationService.sellToStation(playerId, itemId, quantity);
+      res.json(result);
+    } catch (error) {
+      console.error('Sell error:', error);
+      res.status(400).json({ error: error instanceof Error ? error.message : 'Failed to sell item' });
+    }
+  });
+
+  // Get available trade items (for reference)
+  router.get('/trade-items', async (req, res) => {
+    try {
+      const { stationInventoryService } = getServices();
+      const items = stationInventoryService.getAllTradeItems();
+      res.json(items);
+    } catch (error) {
+      console.error('Trade items error:', error);
+      res.status(500).json({ error: error instanceof Error ? error.message : 'Failed to get trade items' });
+    }
+  });
 
   return router;
 }

@@ -32,6 +32,8 @@ export interface CelestialBody {
   resources?: ResourceDeposit[];
   stationClass?: 'A' | 'B' | 'C' | 'D' | 'E'; // For stations only
   stationType?: 'trade' | 'military' | 'shipyard' | 'mining' | 'research'; // Future use
+  inventory?: StationInventory[]; // For stations only
+  credits?: number; // For stations only
 }
 
 export interface ResourceDeposit {
@@ -179,6 +181,7 @@ export interface PlayerStatusResponse {
   maxFuel: number;
   credits: number;
   cargoCount: number;
+  cargo: CargoItem[];
   probes: number;
   dockedAt?: string; // Station ID if docked
 }

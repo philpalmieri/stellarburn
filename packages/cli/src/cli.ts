@@ -2,7 +2,7 @@
 
 import { Command } from 'commander';
 import chalk from 'chalk';
-import { createPlayer, getPlayerStatus, movePlayer, scanArea, jumpPlayer, systemScan, plotCourse, autopilot, getKnownSystems, getAllKnownSystems, getSystemDetails, launchProbe, getActiveProbes, findNearest, getNearbyStation, dockAtStation, undockFromStation, getStationInfo } from './game.js';
+import { createPlayer, getPlayerStatus, movePlayer, scanArea, jumpPlayer, systemScan, plotCourse, autopilot, getKnownSystems, getAllKnownSystems, getSystemDetails, launchProbe, getActiveProbes, findNearest, getNearbyStation, dockAtStation, undockFromStation, getStationInfo, buyFromStation, sellToStation } from './game.js';
 
 // Reusable display functions for scan results
 function displayCurrentZone(zone: any) {
@@ -16,7 +16,20 @@ function displayCurrentZone(zone: any) {
                    obj.type === 'planet' ? chalk.green :
                    obj.type === 'station' ? chalk.cyan : chalk.gray;
       const coords = obj.coordinates ? `at ${obj.coordinates.x.toFixed(1)},${obj.coordinates.y.toFixed(1)},${obj.coordinates.z.toFixed(1)} ` : '';
-      console.log(`  ${color(obj.type)}: ${obj.name} ${coords}(size: ${obj.size} zones)`);
+
+      if (obj.type === 'station') {
+        const stationClass = obj.stationClass ? ` (Class ${obj.stationClass})` : '';
+        const inventoryInfo = obj.inventoryCount > 0 ? ` - ${obj.inventoryCount} items` : ' - no inventory';
+        console.log(`  ${color(obj.type)}: ${obj.name}${stationClass} ${coords}(size: ${obj.size} zones)${inventoryInfo}`);
+
+        if (obj.enrichedInventory && obj.enrichedInventory.length > 0) {
+          console.log(`    ${chalk.gray('Top items:')} ${obj.enrichedInventory.map((inv: any) =>
+            `${inv.itemName} (${inv.quantity}x @${inv.sellPrice}cr)`
+          ).join(', ')}`);
+        }
+      } else {
+        console.log(`  ${color(obj.type)}: ${obj.name} ${coords}(size: ${obj.size} zones)`);
+      }
     });
   }
 
@@ -179,8 +192,8 @@ program
   .allowUnknownOption(true)
   .action(async (playerId, action, target) => {
     // Handle case where coordinates start with dash by checking raw process arguments
+    const args = process.argv.slice(2); // Remove 'node' and script name
     if (!target) {
-      const args = process.argv.slice(2); // Remove 'node' and script name
       if (args.length >= 3) {
         const possibleTarget = args[2];
         if (possibleTarget && possibleTarget.includes(',')) {
@@ -198,6 +211,20 @@ program
           console.log(`Fuel: ${chalk.yellow(status.fuel)}/${status.maxFuel}`);
           console.log(`Probes: ${chalk.cyan(status.probes)}`);
           console.log(`Credits: ${chalk.green(status.credits)}`);
+
+          // Show cargo inventory
+          if (status.cargo && status.cargo.length > 0) {
+            console.log(chalk.magenta(`\nCargo Hold:`));
+            status.cargo.forEach((cargoItem: any) => {
+              console.log(`  ${chalk.cyan(cargoItem.itemId)}: ${cargoItem.quantity} units (bought at ${cargoItem.purchasePrice} cr each)`);
+            });
+          } else {
+            console.log(chalk.gray(`\nCargo Hold: Empty`));
+          }
+
+          if (status.dockedAt) {
+            console.log(chalk.green(`\nDocked at station: ${status.dockedAt}`));
+          }
           break;
 
         case 'scan':
@@ -362,6 +389,26 @@ program
           await undockFromStationCommand(playerId);
           break;
 
+        case 'market':
+          await showStationMarket(playerId);
+          break;
+
+        case 'buy':
+          if (!target || !args[3]) {
+            console.log(chalk.gray('Usage: stellarburn <playerId> buy <itemId> <quantity>'));
+            break;
+          }
+          await buyItemCommand(playerId, target, parseInt(args[3]));
+          break;
+
+        case 'sell':
+          if (!target || !args[3]) {
+            console.log(chalk.gray('Usage: stellarburn <playerId> sell <itemId> <quantity>'));
+            break;
+          }
+          await sellItemCommand(playerId, target, parseInt(args[3]));
+          break;
+
         default:
           console.log(chalk.red(`Unknown action: ${action}`));
           console.log(chalk.blue(`\nAvailable actions for ${playerId}:`));
@@ -381,6 +428,9 @@ program
           console.log(chalk.cyan(`  station          - Show nearby station info`));
           console.log(chalk.cyan(`  dock             - Dock at nearby station`));
           console.log(chalk.cyan(`  undock           - Undock from current station`));
+          console.log(chalk.cyan(`  market           - View station market (when docked)`));
+          console.log(chalk.cyan(`  buy <item> <qty> - Buy items from station`));
+          console.log(chalk.cyan(`  sell <item> <qty>- Sell items to station`));
           console.log(chalk.blue(`\nTip: Use quotes around coordinates like "1,2,3"`));
       }
     } catch (error: any) {
@@ -421,7 +471,20 @@ async function jumpMove(playerId: string, direction: string) {
           const color = obj.type === 'star' ? chalk.red :
                        obj.type === 'planet' ? chalk.green :
                        obj.type === 'station' ? chalk.cyan : chalk.gray;
-          console.log(`  ${color(obj.type)}: ${obj.name} at ${obj.coordinates.x},${obj.coordinates.y},${obj.coordinates.z} (${obj.size} zones)`);
+
+          if (obj.type === 'station') {
+            const stationClass = obj.stationClass ? ` (Class ${obj.stationClass})` : '';
+            const inventoryInfo = obj.inventoryCount > 0 ? ` - ${obj.inventoryCount} items` : ' - no inventory';
+            console.log(`  ${color(obj.type)}: ${obj.name}${stationClass} at ${obj.coordinates.x},${obj.coordinates.y},${obj.coordinates.z} (${obj.size} zones)${inventoryInfo}`);
+
+            if (obj.enrichedInventory && obj.enrichedInventory.length > 0) {
+              console.log(`    ${chalk.gray('Top items:')} ${obj.enrichedInventory.map((inv: any) =>
+                `${inv.itemName} (${inv.quantity}x @${inv.sellPrice}cr)`
+              ).join(', ')}`);
+            }
+          } else {
+            console.log(`  ${color(obj.type)}: ${obj.name} at ${obj.coordinates.x},${obj.coordinates.y},${obj.coordinates.z} (${obj.size} zones)`);
+          }
         });
       } else {
         console.log(chalk.gray(`Empty system`));
@@ -561,12 +624,30 @@ async function showSystemDetails(playerId: string, coordinates: string) {
         distanceInfo = chalk.yellow(`${jumpDistance} jumps, ${moveDistance} total moves`);
       }
 
-      console.log(`${(index + 1).toString().padStart(2)}. ${color(obj.type.toUpperCase())}: ${chalk.white(obj.name)}`);
-      console.log(`    Location: ${obj.coordinates.x},${obj.coordinates.y},${obj.coordinates.z}`);
-      console.log(`    Size: ${obj.size} | Distance: ${obj.distance} units | Travel: ${distanceInfo}`);
+      if (obj.type === 'station') {
+        const stationClass = obj.stationClass ? ` (Class ${obj.stationClass})` : '';
+        console.log(`${(index + 1).toString().padStart(2)}. ${color(obj.type.toUpperCase())}: ${chalk.white(obj.name)}${stationClass}`);
+        console.log(`    Location: ${obj.coordinates.x},${obj.coordinates.y},${obj.coordinates.z}`);
+        console.log(`    Size: ${obj.size} | Distance: ${obj.distance} units | Travel: ${distanceInfo}`);
 
-      if (obj.resources && obj.resources.length > 0) {
-        console.log(`    Resources: ${obj.resources.join(', ')}`);
+        if (obj.inventoryCount > 0) {
+          console.log(`    ${chalk.cyan('Inventory:')} ${obj.inventoryCount} items`);
+          if (obj.enrichedInventory && obj.enrichedInventory.length > 0) {
+            console.log(`    ${chalk.gray('Top items:')} ${obj.enrichedInventory.map((inv: any) =>
+              `${inv.itemName} (${inv.quantity}x @${inv.sellPrice}cr)`
+            ).join(', ')}`);
+          }
+        } else {
+          console.log(`    ${chalk.gray('No inventory available')}`);
+        }
+      } else {
+        console.log(`${(index + 1).toString().padStart(2)}. ${color(obj.type.toUpperCase())}: ${chalk.white(obj.name)}`);
+        console.log(`    Location: ${obj.coordinates.x},${obj.coordinates.y},${obj.coordinates.z}`);
+        console.log(`    Size: ${obj.size} | Distance: ${obj.distance} units | Travel: ${distanceInfo}`);
+
+        if (obj.resources && obj.resources.length > 0) {
+          console.log(`    Resources: ${obj.resources.join(', ')}`);
+        }
       }
     });
 
@@ -864,6 +945,9 @@ async function dockAtStationCommand(playerId: string) {
 
       console.log(chalk.blue(`\n💡 Station commands:`));
       console.log(chalk.cyan(`   stellarburn ${playerId} station       - View station details`));
+      console.log(chalk.cyan(`   stellarburn ${playerId} market        - View trading market`));
+      console.log(chalk.cyan(`   stellarburn ${playerId} buy <item> <qty> - Buy items from station`));
+      console.log(chalk.cyan(`   stellarburn ${playerId} sell <item> <qty> - Sell items to station`));
       console.log(chalk.cyan(`   stellarburn ${playerId} undock        - Leave the station`));
     }
   } catch (error: any) {
@@ -902,6 +986,97 @@ async function showStationInfo(playerId: string, stationId: string) {
 
     console.log(chalk.blue(`\n💡 Available services:`));
     console.log(chalk.gray(`   Trade services coming soon...`));
+  } catch (error: any) {
+    console.log(chalk.red(`✗ ${error.message}`));
+  }
+}
+
+async function showStationMarket(playerId: string) {
+  try {
+    // First check if player is docked
+    const status = await getPlayerStatus(playerId);
+    if (!status.dockedAt) {
+      console.log(chalk.red(`You must be docked at a station to access the market.`));
+      console.log(chalk.blue(`💡 Use 'dock' command to dock at a nearby station.`));
+      return;
+    }
+
+    // Get station information with inventory
+    const station = await getStationInfo(playerId, status.dockedAt);
+
+    console.log(chalk.cyan(`=== ${station.name} Market ===`));
+    console.log(`Station Class: ${chalk.yellow(station.stationClass)}`);
+    console.log(`Station Credits: ${chalk.green(station.credits)} cr`);
+
+    if (station.inventory && station.inventory.length > 0) {
+      console.log(chalk.white(`\nAvailable Items:`));
+      station.inventory.forEach((item: any, index: number) => {
+        const buyable = item.quantity > 0 || item.itemId === 'fuel' || item.itemId === 'probe';
+        const quantityText = (item.itemId === 'fuel' || item.itemId === 'probe') ? 'unlimited' : item.quantity.toString();
+        const status = buyable ? chalk.green('✓') : chalk.red('✗');
+
+        console.log(`${(index + 1).toString().padStart(2)}. ${status} ${chalk.white(item.itemName)}`);
+        console.log(`    ID: ${chalk.cyan(item.itemId)} | Qty: ${quantityText} | Buy: ${chalk.green(item.sellPrice)}cr | Sell: ${chalk.yellow(item.buyPrice)}cr`);
+      });
+
+      console.log(chalk.blue(`\n💡 Trading Commands:`));
+      console.log(chalk.gray(`   stellarburn ${playerId} buy <itemId> <quantity>`));
+      console.log(chalk.gray(`   stellarburn ${playerId} sell <itemId> <quantity>`));
+      console.log(chalk.gray(`   Example: stellarburn ${playerId} buy fuel 10`));
+    } else {
+      console.log(chalk.gray(`\nNo items available for trade.`));
+    }
+
+    // Show player's cargo count (detailed cargo info would need separate API call)
+    if (status.cargoCount > 0) {
+      console.log(chalk.magenta(`\nYour Cargo: ${status.cargoCount} items`));
+      console.log(chalk.gray(`(Use 'status' command for detailed cargo information)`));
+    } else {
+      console.log(chalk.gray(`\nYour cargo hold is empty.`));
+    }
+
+  } catch (error: any) {
+    console.log(chalk.red(`✗ ${error.message}`));
+  }
+}
+
+async function buyItemCommand(playerId: string, itemId: string, quantity: number) {
+  try {
+    if (isNaN(quantity) || quantity <= 0) {
+      console.log(chalk.red(`Invalid quantity. Must be a positive number.`));
+      return;
+    }
+
+    const result = await buyFromStation(playerId, itemId, quantity);
+
+    console.log(chalk.green(`✓ ${result.message}`));
+    console.log(`Credits remaining: ${chalk.green(result.transaction.playerCreditsRemaining)} cr`);
+
+    // Special handling for fuel and probes
+    if (itemId === 'fuel') {
+      console.log(chalk.blue(`⛽ Fuel added to your ship!`));
+    } else if (itemId === 'probe') {
+      console.log(chalk.blue(`🛰️ Probes added to your ship!`));
+    }
+
+  } catch (error: any) {
+    console.log(chalk.red(`✗ ${error.message}`));
+  }
+}
+
+async function sellItemCommand(playerId: string, itemId: string, quantity: number) {
+  try {
+    if (isNaN(quantity) || quantity <= 0) {
+      console.log(chalk.red(`Invalid quantity. Must be a positive number.`));
+      return;
+    }
+
+    const result = await sellToStation(playerId, itemId, quantity);
+
+    console.log(chalk.green(`✓ ${result.message}`));
+    console.log(`Credits earned: ${chalk.green(result.transaction.totalValue)} cr`);
+    console.log(`Credits remaining: ${chalk.green(result.transaction.playerCreditsRemaining)} cr`);
+
   } catch (error: any) {
     console.log(chalk.red(`✗ ${error.message}`));
   }

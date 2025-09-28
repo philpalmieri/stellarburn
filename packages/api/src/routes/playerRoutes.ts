@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { getMongo } from '../services/databaseService.js';
 import { getServices } from '../services/serviceFactory.js';
+import { getItemById } from '../data/tradeItems.js';
 import { DIRECTIONS, getDirectionVector } from '../constants/directions.js';
 import { coordinateToString } from '@stellarburn/shared';
 
@@ -119,7 +120,9 @@ export function createPlayerRoutes() {
         maxFuel: player.ship.maxFuel,
         credits: player.credits,
         cargoCount: player.ship.cargo.length,
-        probes: player.ship.probes || 0
+        cargo: player.ship.cargo || [],
+        probes: player.ship.probes || 0,
+        dockedAt: player.dockedAt || undefined
       });
     } catch (error) {
       console.error('Player status error:', error);
@@ -453,19 +456,42 @@ export function createPlayerRoutes() {
         discovered: system.createdAt || system.lastActivity,
         isEmpty: !system.staticObjects || system.staticObjects.length === 0,
         objectCount: system.staticObjects ? system.staticObjects.length : 0,
-        objects: system.staticObjects ? system.staticObjects.map((obj: any) => ({
-          id: obj.id,
-          type: obj.type,
-          name: obj.name,
-          size: obj.size,
-          coordinates: obj.coordinates,
-          distance: Math.sqrt(
-            Math.pow(obj.coordinates.x - result.playerCoordinates.x, 2) +
-            Math.pow(obj.coordinates.y - result.playerCoordinates.y, 2) +
-            Math.pow(obj.coordinates.z - result.playerCoordinates.z, 2)
-          ).toFixed(2),
-          resources: obj.resources || []
-        })) : [],
+        objects: system.staticObjects ? system.staticObjects.map((obj: any) => {
+          const baseObj = {
+            id: obj.id,
+            type: obj.type,
+            name: obj.name,
+            size: obj.size,
+            coordinates: obj.coordinates,
+            distance: Math.sqrt(
+              Math.pow(obj.coordinates.x - result.playerCoordinates.x, 2) +
+              Math.pow(obj.coordinates.y - result.playerCoordinates.y, 2) +
+              Math.pow(obj.coordinates.z - result.playerCoordinates.z, 2)
+            ).toFixed(2),
+            resources: obj.resources || []
+          };
+
+          // Enrich station data with inventory details
+          if (obj.type === 'station' && obj.inventory) {
+            const enrichedInventory = obj.inventory?.map((inv: any) => {
+              const item = getItemById(inv.itemId);
+              return {
+                ...inv,
+                itemName: item?.name || 'Unknown Item',
+                itemCategory: item?.category || 'unknown'
+              };
+            }).slice(0, 5) || [];
+
+            return {
+              ...baseObj,
+              stationClass: obj.stationClass,
+              enrichedInventory,
+              inventoryCount: obj.inventory?.length || 0
+            };
+          }
+
+          return baseObj;
+        }) : [],
         dynamicObjects: system.dynamicObjects || { ships: [], probes: [] }
       };
 

@@ -337,3 +337,51 @@ export async function getStationInfo(playerId: string, stationId: string): Promi
     throw new Error(error.message || 'Network error during station info query');
   }
 }
+
+export async function buyFromStation(playerId: string, itemId: string, quantity: number): Promise<any> {
+  try {
+    const response = await fetch(`${API_BASE}/station/${playerId}/buy`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ itemId, quantity })
+    });
+
+    if (!response.ok) {
+      const error: any = await response.json();
+      throw new Error(error.error || `Failed to buy item (${response.status})`);
+    }
+
+    return await response.json();
+  } catch (error: any) {
+    if (error.code === 'ECONNREFUSED') {
+      throw new Error('Cannot connect to API server. Make sure the API is running.');
+    }
+    throw new Error(error.message || 'Network error during purchase');
+  }
+}
+
+export async function sellToStation(playerId: string, itemId: string, quantity: number): Promise<any> {
+  try {
+    const response = await fetch(`${API_BASE}/station/${playerId}/sell`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ itemId, quantity })
+    });
+
+    if (!response.ok) {
+      const error: any = await response.json();
+      throw new Error(error.error || `Failed to sell item (${response.status})`);
+    }
+
+    return await response.json();
+  } catch (error: any) {
+    if (error.code === 'ECONNREFUSED') {
+      throw new Error('Cannot connect to API server. Make sure the API is running.');
+    }
+    throw new Error(error.message || 'Network error during sale');
+  }
+}
