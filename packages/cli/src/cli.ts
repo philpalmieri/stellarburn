@@ -2,7 +2,7 @@
 
 import { Command } from 'commander';
 import chalk from 'chalk';
-import { createPlayer, getPlayerStatus, movePlayer, scanArea, jumpPlayer, systemScan, plotCourse, autopilot, getKnownSystems, getAllKnownSystems, getSystemDetails, launchProbe, getActiveProbes, findNearest, getNearbyStation, dockAtStation, undockFromStation, getStationInfo, buyFromStation, sellToStation } from './game.js';
+import { createPlayer, getPlayerStatus, movePlayer, scanArea, jumpPlayer, systemScan, plotCourse, autopilot, getKnownSystems, getAllKnownSystems, getSystemDetails, launchProbe, getActiveProbes, findNearest, getNearbyStation, dockAtStation, undockFromStation, getStationInfo, buyFromStation, sellToStation, resetPlayer } from './game.js';
 
 // Reusable display functions for scan results
 function displayCurrentZone(zone: any) {
@@ -411,6 +411,10 @@ program
           await sellItemCommand(playerId, target, parseInt(args[3]));
           break;
 
+        case 'reset':
+          await resetPlayerCommand(playerId);
+          break;
+
         default:
           console.log(chalk.red(`Unknown action: ${action}`));
           console.log(chalk.blue(`\nAvailable actions for ${playerId}:`));
@@ -433,6 +437,7 @@ program
           console.log(chalk.cyan(`  market           - View station market (when docked)`));
           console.log(chalk.cyan(`  buy <item> <qty> - Buy items from station`));
           console.log(chalk.cyan(`  sell <item> <qty>- Sell items to station`));
+          console.log(chalk.magenta(`  reset            - Reset fuel and probes (admin)`));
           console.log(chalk.blue(`\nTip: Use quotes around coordinates like "1,2,3"`));
       }
     } catch (error: any) {
@@ -1079,6 +1084,17 @@ async function sellItemCommand(playerId: string, itemId: string, quantity: numbe
     console.log(`Credits earned: ${chalk.green(result.transaction.totalValue)} cr`);
     console.log(`Credits remaining: ${chalk.green(result.transaction.playerCreditsRemaining)} cr`);
 
+  } catch (error: any) {
+    console.log(chalk.red(`✗ ${error.message}`));
+  }
+}
+
+async function resetPlayerCommand(playerId: string) {
+  try {
+    const result = await resetPlayer(playerId);
+    console.log(chalk.green(`✓ Player resources reset`));
+    console.log(chalk.yellow(`Fuel: ${result.fuel}`));
+    console.log(chalk.cyan(`Probes: ${result.probes}`));
   } catch (error: any) {
     console.log(chalk.red(`✗ ${error.message}`));
   }

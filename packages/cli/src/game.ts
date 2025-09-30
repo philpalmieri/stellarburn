@@ -126,13 +126,21 @@ export async function autopilot(playerId: string, path: any[]) {
 
   try {
     let result;
+    let actualAction = step.type; // Track what we actually did
+
     if (step.type === 'move') {
       try {
         result = await movePlayer(playerId, step.direction);
       } catch (error: any) {
         // If move fails because it would exit system boundary, try jumping instead
         if (error.message?.includes('would exit system boundary')) {
+          console.log(`Auto-converting move ${step.direction} to jump due to system boundary`);
           result = await jumpPlayer(playerId, step.direction);
+          actualAction = 'jump'; // Update what we actually did
+        } else if (error.message?.includes('Cannot move into')) {
+          // If move fails due to collision with star/planet, this indicates the navigation
+          // system didn't account for obstacles. For now, fail gracefully with a helpful message.
+          throw new Error('Navigation failed: Path blocked by celestial object. The navigation system needs pathfinding improvements to route around obstacles.');
         } else {
           throw error;
         }
@@ -149,7 +157,7 @@ export async function autopilot(playerId: string, path: any[]) {
     return {
       success: true,
       completed,
-      message: completed ? 'Destination reached!' : `${step.type === 'move' ? 'Moved' : 'Jumped'} ${step.direction}`,
+      message: completed ? 'Destination reached!' : `${actualAction === 'move' ? 'Moved' : 'Jumped'} ${step.direction}`,
       remainingSteps,
       stepResult: result
     };
@@ -392,5 +400,26 @@ export async function sellToStation(playerId: string, itemId: string, quantity: 
       throw new Error('Cannot connect to API server. Make sure the API is running.');
     }
     throw new Error(error.message || 'Network error during sale');
+  }
+}
+
+// Admin function to reset player resources (for testing)
+export async function resetPlayer(playerId: string): Promise<any> {
+  try {
+    const response = await fetch(`${API_BASE}/player/${playerId}/admin/reset`, {
+      method: 'POST'
+    });
+
+    if (!response.ok) {
+      const error: any = await response.json();
+      throw new Error(error.error || `Failed to reset player (${response.status})`);
+    }
+
+    return await response.json();
+  } catch (error: any) {
+    if (error.code === 'ECONNREFUSED') {
+      throw new Error('Cannot connect to API server. Make sure the API is running.');
+    }
+    throw new Error(error.message || 'Network error during reset');
   }
 }

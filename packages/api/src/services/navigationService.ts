@@ -247,7 +247,227 @@ const planSystemJumps = (fromSystem: Coordinates3D, toSystem: Coordinates3D): Na
   return steps;
 };
 
-// Plan movement within a single system
+// Check if a coordinate is within system boundaries
+const isWithinSystemBounds = (coord: Coordinates3D): boolean => {
+  const systemCoords = getSystemCoords(coord);
+  const zoneX = coord.x - systemCoords.x;
+  const zoneY = coord.y - systemCoords.y;
+  const zoneZ = coord.z - systemCoords.z;
+
+  return zoneX >= 0 && zoneX <= 0.4 && zoneY >= 0 && zoneY <= 0.4 && zoneZ >= 0 && zoneZ <= 0.4;
+};
+
+// Check if a coordinate has a collision with obstacles
+const hasCollision = async (db: any, coord: Coordinates3D): Promise<boolean> => {
+  try {
+    const systemCoords = getSystemCoords(coord);
+    const systemCoordString = coordinateToString(systemCoords);
+    const collision = await checkCollision(db, '', coord); // Empty playerId for pathfinding
+    return collision.hasCollision;
+  } catch {
+    return false; // Assume no collision if check fails
+  }
+};
+
+// Simple obstacle avoidance pathfinding
+const planSystemMovementWithAvoidance = async (db: any, from: Coordinates3D, to: Coordinates3D): Promise<NavigationStep[]> => {
+  const steps: NavigationStep[] = [];
+  let current = { ...from };
+  const tolerance = 0.001;
+  const stepSize = 0.1;
+
+  // Move in X direction with obstacle avoidance
+  while (Math.abs(current.x - to.x) > tolerance) {
+    const remaining = to.x - current.x;
+    const direction = remaining > 0 ? 'east' : 'west';
+    const step = Math.abs(remaining) < stepSize ? remaining :
+      (remaining > 0 ? stepSize : -stepSize);
+
+    const next = { ...current };
+    next.x = Math.round((current.x + step) * 10) / 10;
+
+    // Check if the next position would be within system boundaries
+    if (!isWithinSystemBounds(next)) {
+      // If movement would exit system, stop here - let higher-level navigation handle jumps
+      break;
+    }
+
+    // Check for collision at the next position
+    const collision = await hasCollision(db, next);
+
+    if (collision) {
+      // Try to go around the obstacle by moving in Y direction first
+      const detourSteps = await planDetourAround(db, current, to);
+      steps.push(...detourSteps);
+      break; // Exit X movement loop, detour handles the rest
+    } else {
+      steps.push({
+        type: 'move',
+        direction,
+        from: formatCoordinates(current),
+        to: formatCoordinates(next),
+        fuelCost: 1,
+        description: `Move ${direction} to ${coordinateToString(formatCoordinates(next))}`
+      });
+
+      current = next;
+    }
+  }
+
+  // Continue with remaining movement if no detour was needed
+  if (steps.length === 0 || !steps[steps.length - 1].description.includes('detour')) {
+    await addRemainingMovement(db, steps, current, to, tolerance, stepSize);
+  }
+
+  return steps;
+};
+
+// Plan a detour around an obstacle
+const planDetourAround = async (db: any, from: Coordinates3D, to: Coordinates3D): Promise<NavigationStep[]> => {
+  const steps: NavigationStep[] = [];
+  const stepSize = 0.1;
+
+  // Try moving in Y direction to go around obstacle
+  const systemCoords = getSystemCoords(from);
+  const yOptions = [
+    Math.round((from.y + stepSize) * 10) / 10,  // Try north
+    Math.round((from.y - stepSize) * 10) / 10   // Try south
+  ];
+
+  for (const newY of yOptions) {
+    const detourPoint = { ...from, y: newY };
+
+    // Make sure we stay within system bounds
+    if (isWithinSystemBounds(detourPoint)) {
+      const collision = await hasCollision(db, detourPoint);
+
+      if (!collision) {
+        // Found a safe detour point, move there first
+        const direction = newY > from.y ? 'north' : 'south';
+        steps.push({
+          type: 'move',
+          direction,
+          from: formatCoordinates(from),
+          to: formatCoordinates(detourPoint),
+          fuelCost: 1,
+          description: `Move ${direction} to avoid obstacle`
+        });
+
+        // Then try to continue toward destination
+        const remainingSteps = await planSystemMovementWithAvoidance(db, detourPoint, to);
+        steps.push(...remainingSteps);
+        return steps;
+      }
+    }
+  }
+
+  // If Y detour doesn't work, try Z direction
+  const zOptions = [
+    Math.round((from.z + stepSize) * 10) / 10,  // Try up
+    Math.round((from.z - stepSize) * 10) / 10   // Try down
+  ];
+
+  for (const newZ of zOptions) {
+    const detourPoint = { ...from, z: newZ };
+
+    if (isWithinSystemBounds(detourPoint)) {
+      const collision = await hasCollision(db, detourPoint);
+
+      if (!collision) {
+        const direction = newZ > from.z ? 'up' : 'down';
+        steps.push({
+          type: 'move',
+          direction,
+          from: formatCoordinates(from),
+          to: formatCoordinates(detourPoint),
+          fuelCost: 1,
+          description: `Move ${direction} to avoid obstacle`
+        });
+
+        const remainingSteps = await planSystemMovementWithAvoidance(db, detourPoint, to);
+        steps.push(...remainingSteps);
+        return steps;
+      }
+    }
+  }
+
+  // If no detour is possible, return empty steps (will cause pathfinding to fail)
+  return steps;
+};
+
+// Add remaining movement after obstacle avoidance
+const addRemainingMovement = async (db: any, steps: NavigationStep[], current: Coordinates3D, to: Coordinates3D, tolerance: number, stepSize: number): Promise<void> => {
+  // Continue Y direction movement
+  while (Math.abs(current.y - to.y) > tolerance) {
+    const remaining = to.y - current.y;
+    const direction = remaining > 0 ? 'north' : 'south';
+    const step = Math.abs(remaining) < stepSize ? remaining :
+      (remaining > 0 ? stepSize : -stepSize);
+
+    const next = { ...current };
+    next.y = Math.round((current.y + step) * 10) / 10;
+
+    // Check if the next position would be within system boundaries
+    if (!isWithinSystemBounds(next)) {
+      // If movement would exit system, stop here
+      break;
+    }
+
+    const collision = await hasCollision(db, next);
+    if (collision) {
+      // If we hit another obstacle, we'd need more complex pathfinding
+      console.warn('Complex obstacle scenario detected, may need advanced pathfinding');
+      break;
+    }
+
+    steps.push({
+      type: 'move',
+      direction,
+      from: formatCoordinates(current),
+      to: formatCoordinates(next),
+      fuelCost: 1,
+      description: `Move ${direction} to ${coordinateToString(formatCoordinates(next))}`
+    });
+
+    current = next;
+  }
+
+  // Continue Z direction movement
+  while (Math.abs(current.z - to.z) > tolerance) {
+    const remaining = to.z - current.z;
+    const direction = remaining > 0 ? 'up' : 'down';
+    const step = Math.abs(remaining) < stepSize ? remaining :
+      (remaining > 0 ? stepSize : -stepSize);
+
+    const next = { ...current };
+    next.z = Math.round((current.z + step) * 10) / 10;
+
+    // Check if the next position would be within system boundaries
+    if (!isWithinSystemBounds(next)) {
+      // If movement would exit system, stop here
+      break;
+    }
+
+    const collision = await hasCollision(db, next);
+    if (collision) {
+      console.warn('Complex obstacle scenario detected, may need advanced pathfinding');
+      break;
+    }
+
+    steps.push({
+      type: 'move',
+      direction,
+      from: formatCoordinates(current),
+      to: formatCoordinates(next),
+      fuelCost: 1,
+      description: `Move ${direction} to ${coordinateToString(formatCoordinates(next))}`
+    });
+
+    current = next;
+  }
+};
+
+// Legacy function for simple movement (without obstacle avoidance)
 const planSystemMovement = (from: Coordinates3D, to: Coordinates3D): NavigationStep[] => {
   const steps: NavigationStep[] = [];
   let current = { ...from };
@@ -353,6 +573,16 @@ const isAtSystemCoordinate = (coord: Coordinates3D, system: Coordinates3D): bool
          Math.abs(coord.z - system.z) < tolerance;
 };
 
+// Convert global coordinates to within-system coordinates (0.0-0.4 range)
+const toWithinSystemCoords = (globalCoord: Coordinates3D): Coordinates3D => {
+  const systemCoords = getSystemCoords(globalCoord);
+  return {
+    x: systemCoords.x + (globalCoord.x - Math.floor(globalCoord.x)),
+    y: systemCoords.y + (globalCoord.y - Math.floor(globalCoord.y)),
+    z: systemCoords.z + (globalCoord.z - Math.floor(globalCoord.z))
+  };
+};
+
 // Main course plotting function
 export const plotCourse = async (db: any, fromStr: string, toStr: string): Promise<NavigationPath> => {
   try {
@@ -379,7 +609,7 @@ export const plotCourse = async (db: any, fromStr: string, toStr: string): Promi
 
     // If no jumps needed, just move within the same system
     if (!needsAnyJump) {
-      allSteps = planSystemMovement(current, to);
+      allSteps = await planSystemMovementWithAvoidance(db, current, to);
     } else {
       // Multi-system navigation - jump to each system in sequence
 
@@ -402,7 +632,7 @@ export const plotCourse = async (db: any, fromStr: string, toStr: string): Promi
           if (Math.abs(current.x - edgeCoord.x) > tolerance ||
               Math.abs(current.y - edgeCoord.y) > tolerance ||
               Math.abs(current.z - edgeCoord.z) > tolerance) {
-            allSteps.push(...planSystemMovement(current, edgeCoord));
+            allSteps.push(...await planSystemMovementWithAvoidance(db, current, edgeCoord));
             current = { ...edgeCoord };
           }
 
@@ -444,7 +674,7 @@ export const plotCourse = async (db: any, fromStr: string, toStr: string): Promi
           if (Math.abs(current.x - edgeCoord.x) > tolerance ||
               Math.abs(current.y - edgeCoord.y) > tolerance ||
               Math.abs(current.z - edgeCoord.z) > tolerance) {
-            allSteps.push(...planSystemMovement(current, edgeCoord));
+            allSteps.push(...await planSystemMovementWithAvoidance(db, current, edgeCoord));
             current = { ...edgeCoord };
           }
 
@@ -486,7 +716,7 @@ export const plotCourse = async (db: any, fromStr: string, toStr: string): Promi
           if (Math.abs(current.x - edgeCoord.x) > tolerance ||
               Math.abs(current.y - edgeCoord.y) > tolerance ||
               Math.abs(current.z - edgeCoord.z) > tolerance) {
-            allSteps.push(...planSystemMovement(current, edgeCoord));
+            allSteps.push(...await planSystemMovementWithAvoidance(db, current, edgeCoord));
             current = { ...edgeCoord };
           }
 
@@ -511,7 +741,18 @@ export const plotCourse = async (db: any, fromStr: string, toStr: string): Promi
 
       // Final movement within the destination system
       if (current.x !== to.x || current.y !== to.y || current.z !== to.z) {
-        allSteps.push(...planSystemMovement(current, to));
+        // Ensure both current and to coordinates are in the same system for final movement
+        const currentSystem = getSystemCoords(current);
+        const destSystem = getSystemCoords(to);
+
+        // Verify we're in the destination system
+        if (currentSystem.x === destSystem.x && currentSystem.y === destSystem.y && currentSystem.z === destSystem.z) {
+          allSteps.push(...await planSystemMovementWithAvoidance(db, current, to));
+        } else {
+          // If we're not in the same system, there's a logic error in the navigation
+          console.error('Navigation error: Final movement attempted between different systems',
+            { current: currentSystem, destination: destSystem });
+        }
       }
     }
 

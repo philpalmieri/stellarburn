@@ -497,5 +497,39 @@ export function createPlayerRoutes() {
     }
   });
 
+  // Admin endpoint to reset player resources (for testing)
+  router.post('/:playerId/admin/reset', async (req, res) => {
+    try {
+      const { playerId } = req.params;
+      const db = getMongo('stellarburn');
+
+      const player = await db.collection('players').findOne({ id: playerId });
+      if (!player) {
+        return res.status(404).json({ error: 'Player not found' });
+      }
+
+      // Reset fuel to max and probes to 10
+      await db.collection('players').updateOne(
+        { id: playerId },
+        {
+          $set: {
+            'ship.fuel': player.ship.maxFuel,
+            'ship.probes': 10,
+            lastActivity: new Date()
+          }
+        }
+      );
+
+      res.json({
+        message: 'Player resources reset',
+        fuel: player.ship.maxFuel,
+        probes: 10
+      });
+    } catch (error) {
+      console.error('Admin reset error:', error);
+      res.status(500).json({ error: error instanceof Error ? error.message : 'Failed to reset player' });
+    }
+  });
+
   return router;
 }
