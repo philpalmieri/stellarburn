@@ -52,15 +52,15 @@ export function createPlayerRoutes() {
       
       // Find safe spawn location
       const sectors = await db.collection('sectors').find({}).toArray();
-      let spawnCoordinates = { x: 0.5, y: 0.5, z: 0.5 };
+      let spawnCoordinates = { x: 0.2, y: 0.2, z: 0.2 };
       
       for (const sector of sectors.slice(0, 10)) {
         const largeObjects = sector.staticObjects.filter((obj: any) => obj.size > 10);
         if (largeObjects.length === 0) {
           spawnCoordinates = {
-            x: sector.coord.x + Math.random() * 0.8 + 0.1,
-            y: sector.coord.y + Math.random() * 0.8 + 0.1,
-            z: sector.coord.z + Math.random() * 0.8 + 0.1
+            x: sector.coord.x + Math.floor(Math.random() * 5) * 0.1,
+            y: sector.coord.y + Math.floor(Math.random() * 5) * 0.1,
+            z: sector.coord.z + Math.floor(Math.random() * 5) * 0.1
           };
           break;
         }

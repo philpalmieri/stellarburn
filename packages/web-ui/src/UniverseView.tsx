@@ -80,12 +80,12 @@ function UniverseView() {
         
         <UniverseVisualization sectors={sectors} bounds={bounds} />
         
-        <OrbitControls 
+        <OrbitControls
           enablePan={true}
           enableZoom={true}
           enableRotate={true}
           dampingFactor={0.05}
-          minDistance={10}
+          minDistance={0.5}
           maxDistance={200}
         />
       </Canvas>

@@ -29,12 +29,18 @@ function StarSystem({ sector, playerCoords }: { sector: SectorDocument; playerCo
         const relativeZ = obj.coordinates.z - playerCoords.z;
 
         if (obj.type === 'star') {
-          const starRadius = Math.min(0.4, (obj.size / 1000) * 2);
+          // Better star sizing based on our new 3-tier system: 1, 9, 27 zones
+          let starRadius;
+          if (obj.size === 1) starRadius = 0.02;      // Small star
+          else if (obj.size === 9) starRadius = 0.06; // Medium star
+          else if (obj.size === 27) starRadius = 0.12; // Large star
+          else starRadius = Math.min(0.15, (obj.size / 200)); // Fallback for any other sizes
+
           const starColor = React.useMemo(() => {
-            if (obj.name.includes('Red Dwarf')) return '#ff6b6b';
+            if (obj.name.includes('Red') || obj.name.includes('Dwarf')) return '#ff6b6b';
             if (obj.name.includes('Solar')) return '#ffd93d';
             if (obj.name.includes('Binary')) return '#74c0fc';
-            if (obj.name.includes('Gas Giant')) return '#ff8cc8';
+            if (obj.name.includes('Gas')) return '#ff8cc8';
             if (obj.name.includes('Dense')) return '#51cf66';
             return '#ffffff';
           }, [obj.name]);
@@ -45,17 +51,34 @@ function StarSystem({ sector, playerCoords }: { sector: SectorDocument; playerCo
                 <sphereGeometry args={[starRadius, 16, 16]} />
                 <meshBasicMaterial color={starColor} />
               </mesh>
+              {/* Glowing corona for better visibility */}
+              <mesh>
+                <sphereGeometry args={[starRadius * 1.2, 8, 8]} />
+                <meshBasicMaterial color={starColor} transparent opacity={0.3} />
+              </mesh>
             </group>
           );
         }
 
         if (obj.type === 'planet') {
-          const planetRadius = Math.min(0.05, (obj.size / 100) * 0.1);
+          // Better planet sizing based on our new 3-tier system: 1, 4, 9 zones
+          let planetRadius;
+          if (obj.size === 1) planetRadius = 0.01;      // Small planet
+          else if (obj.size === 4) planetRadius = 0.02; // Medium planet
+          else if (obj.size === 9) planetRadius = 0.03; // Large planet
+          else planetRadius = Math.min(0.03, (obj.size / 300)); // Fallback
+
+          const planetColor = React.useMemo(() => {
+            // Vary planet colors slightly for visual interest
+            const colors = ['#8d6e63', '#607d8b', '#795548', '#5d4037', '#424242'];
+            return colors[Math.abs(obj.id.charCodeAt(obj.id.length - 1)) % colors.length];
+          }, [obj.id]);
+
           return (
             <group key={obj.id} position={[relativeX, relativeY, relativeZ]}>
               <mesh>
                 <sphereGeometry args={[planetRadius, 8, 8]} />
-                <meshBasicMaterial color="#a0a0a0" />
+                <meshBasicMaterial color={planetColor} />
               </mesh>
             </group>
           );
@@ -64,9 +87,31 @@ function StarSystem({ sector, playerCoords }: { sector: SectorDocument; playerCo
         if (obj.type === 'station') {
           return (
             <group key={obj.id} position={[relativeX, relativeY, relativeZ]}>
+              {/* Station structure */}
               <mesh>
-                <boxGeometry args={[0.02, 0.02, 0.02]} />
+                <boxGeometry args={[0.015, 0.015, 0.015]} />
                 <meshBasicMaterial color="#64ffda" />
+              </mesh>
+              {/* Glowing indicator for better visibility */}
+              <mesh>
+                <sphereGeometry args={[0.025, 6, 6]} />
+                <meshBasicMaterial color="#00e5ff" transparent opacity={0.4} />
+              </mesh>
+              {/* Blinking beacon effect */}
+              <mesh>
+                <sphereGeometry args={[0.01, 4, 4]} />
+                <meshBasicMaterial color="#ffffff" />
+              </mesh>
+            </group>
+          );
+        }
+
+        if (obj.type === 'asteroid') {
+          return (
+            <group key={obj.id} position={[relativeX, relativeY, relativeZ]}>
+              <mesh>
+                <dodecahedronGeometry args={[0.005, 0]} />
+                <meshBasicMaterial color="#666666" />
               </mesh>
             </group>
           );
@@ -81,15 +126,15 @@ function StarSystem({ sector, playerCoords }: { sector: SectorDocument; playerCo
 function PlayerShip() {
   return (
     <group position={[0, 0, 0]}>
-      {/* Player always at center (0,0,0) */}
+      {/* Player always at center (0,0,0) - scaled down to be proportional to new object sizes */}
       <mesh>
-        <octahedronGeometry args={[0.05, 0]} />
+        <octahedronGeometry args={[0.015, 0]} />
         <meshBasicMaterial color="#ff1493" />
       </mesh>
-      
+
       {/* Glowing outline to make it obvious */}
       <mesh>
-        <octahedronGeometry args={[0.07, 0]} />
+        <octahedronGeometry args={[0.025, 0]} />
         <meshBasicMaterial color="#ff69b4" transparent opacity={0.3} />
       </mesh>
     </group>
@@ -255,12 +300,12 @@ export default function PlayerCenteredView({ playerId }: Props) {
         {/* Probes positioned relative to player */}
         <Probes playerCoords={playerCoords} />
         
-        <OrbitControls 
+        <OrbitControls
           enablePan={true}
           enableZoom={true}
           enableRotate={true}
           dampingFactor={0.05}
-          minDistance={5}
+          minDistance={0.5}
           maxDistance={50}
           target={[0, 0, 0]} // Always orbit around the player
         />

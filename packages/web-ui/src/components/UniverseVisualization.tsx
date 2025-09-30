@@ -42,9 +42,12 @@ function StarSystem({ sector }: { sector: SectorDocument }) {
     return '#ffffff';
   }, [star]);
 
-  // Much smaller scaling - stars should stay within their sector
-  // Max star radius should be about 0.4 (so they don't overlap with adjacent sectors)
-  const starRadius = Math.min(0.4, (star.size / 1000) * 2); // Scale 0-350 zones to 0-0.7 radius max
+  // Better star sizing based on new 3-tier system: 1, 9, 27 zones
+  let starRadius;
+  if (star.size === 1) starRadius = 0.02;      // Small star
+  else if (star.size === 9) starRadius = 0.06; // Medium star
+  else if (star.size === 27) starRadius = 0.12; // Large star
+  else starRadius = Math.min(0.15, (star.size / 200)); // Fallback for any other sizes
   
   return (
     <>
@@ -54,16 +57,33 @@ function StarSystem({ sector }: { sector: SectorDocument }) {
           <sphereGeometry args={[starRadius, 16, 16]} />
           <meshBasicMaterial color={systemColor} />
         </mesh>
+        {/* Glowing corona for better visibility */}
+        <mesh>
+          <sphereGeometry args={[starRadius * 1.2, 8, 8]} />
+          <meshBasicMaterial color={systemColor} transparent opacity={0.3} />
+        </mesh>
       </group>
 
       {/* Planets at their actual coordinates */}
       {planets.map((planet) => {
-        const planetRadius = Math.min(0.05, (planet.size / 100) * 0.1);
+        // Better planet sizing based on new 3-tier system: 1, 4, 9 zones
+        let planetRadius;
+        if (planet.size === 1) planetRadius = 0.01;      // Small planet
+        else if (planet.size === 4) planetRadius = 0.02; // Medium planet
+        else if (planet.size === 9) planetRadius = 0.03; // Large planet
+        else planetRadius = Math.min(0.03, (planet.size / 300)); // Fallback
+
+        const planetColor = React.useMemo(() => {
+          // Vary planet colors slightly for visual interest
+          const colors = ['#8d6e63', '#607d8b', '#795548', '#5d4037', '#424242'];
+          return colors[Math.abs(planet.id.charCodeAt(planet.id.length - 1)) % colors.length];
+        }, [planet.id]);
+
         return (
           <group key={planet.id} position={[planet.coordinates.x, planet.coordinates.y, planet.coordinates.z]}>
             <mesh>
               <sphereGeometry args={[planetRadius, 8, 8]} />
-              <meshBasicMaterial color="#a0a0a0" />
+              <meshBasicMaterial color={planetColor} />
             </mesh>
           </group>
         );
@@ -72,9 +92,20 @@ function StarSystem({ sector }: { sector: SectorDocument }) {
       {/* Stations at their actual coordinates */}
       {stations.map((station) => (
         <group key={station.id} position={[station.coordinates.x, station.coordinates.y, station.coordinates.z]}>
+          {/* Station structure */}
           <mesh>
-            <boxGeometry args={[0.02, 0.02, 0.02]} />
+            <boxGeometry args={[0.015, 0.015, 0.015]} />
             <meshBasicMaterial color="#64ffda" />
+          </mesh>
+          {/* Glowing indicator for better visibility */}
+          <mesh>
+            <sphereGeometry args={[0.025, 6, 6]} />
+            <meshBasicMaterial color="#00e5ff" transparent opacity={0.4} />
+          </mesh>
+          {/* Blinking beacon effect */}
+          <mesh>
+            <sphereGeometry args={[0.01, 4, 4]} />
+            <meshBasicMaterial color="#ffffff" />
           </mesh>
         </group>
       ))}
@@ -85,12 +116,16 @@ function StarSystem({ sector }: { sector: SectorDocument }) {
 function PlayerIndicator({ player }: { player: Player }) {
   return (
     <group position={[player.coordinates.x, player.coordinates.y, player.coordinates.z]}>
-      {/* Tiny player ship */}
+      {/* Player ship - scaled down to be proportional to new object sizes */}
       <mesh>
-        <octahedronGeometry args={[0.05, 0]} />
+        <octahedronGeometry args={[0.015, 0]} />
         <meshBasicMaterial color="#ff1493" />
       </mesh>
-
+      {/* Glowing outline */}
+      <mesh>
+        <octahedronGeometry args={[0.025, 0]} />
+        <meshBasicMaterial color="#ff69b4" transparent opacity={0.3} />
+      </mesh>
     </group>
   );
 }

@@ -77,9 +77,9 @@ function generateRandomCoordinate(size: number): Coordinates3D {
   };
 }
 
-// Fixed sub-coordinate generation - ensure coordinates stay within system bounds
+// Fixed sub-coordinate generation for 5x5x5 zones per sector (0.0 to 0.4)
 function generateSubCoordinate(baseCoord: number): number {
-  const offset = (Math.floor(Math.random() * 8) + 1) * 0.1; // 0.1 to 0.8 (not 0.9)
+  const offset = Math.floor(Math.random() * 5) * 0.1; // 0.0, 0.1, 0.2, 0.3, 0.4
   return Math.round((baseCoord + offset) * 10) / 10; // Round to fix floating point
 }
 
@@ -98,127 +98,181 @@ function selectSystemType(): SystemType {
 }
 
 function generateStarSize(systemType: SystemType): number {
+  // 3 tier star system: 1, 9, or 27 zones
+  const random = Math.random();
+
   switch (systemType.name) {
     case 'Red Dwarf System':
-      return Math.floor(Math.random() * 100) + 50;
+      return random < 0.7 ? 1 : (random < 0.95 ? 9 : 27); // Mostly small
     case 'Solar-type System':
-      return Math.floor(Math.random() * 150) + 100;
+      return random < 0.3 ? 1 : (random < 0.8 ? 9 : 27); // Mostly medium
     case 'Binary System':
-      return Math.floor(Math.random() * 200) + 150;
+      return random < 0.1 ? 1 : (random < 0.4 ? 9 : 27); // Mostly large
     case 'Gas Giant System':
-      return Math.floor(Math.random() * 100) + 80;
+      return random < 0.4 ? 9 : 27; // Medium to large only
     case 'Dense System':
-      return Math.floor(Math.random() * 100) + 200;
+      return random < 0.2 ? 9 : 27; // Large systems
     case 'Sparse System':
-      return Math.floor(Math.random() * 50) + 30;
+      return random < 0.8 ? 1 : 9; // Small to medium only
     default:
-      return Math.floor(Math.random() * 100) + 100;
+      return random < 0.4 ? 1 : (random < 0.8 ? 9 : 27); // Balanced
   }
 }
 
-function generatePlanetSize(systemType: SystemType): number {
-  const baseSize = Math.floor(Math.random() * 12) + 1;
-  
-  if (systemType.name === 'Gas Giant System') {
-    return baseSize + Math.floor(Math.random() * 40) + 20;
-  } else if (systemType.name === 'Dense System') {
-    return Math.floor(Math.random() * 8) + 3;
+function generatePlanetSize(starSize: number): number {
+  // 3 tier planet system: 1, 4, or 9 zones
+  const random = Math.random();
+
+  if (starSize === 27) {
+    // Large stars: only small planets (1 zone)
+    return 1;
+  } else if (starSize === 9) {
+    // Medium stars: small to medium planets
+    return random < 0.6 ? 1 : 4;
   } else {
-    return baseSize;
+    // Small stars: all sizes allowed
+    return random < 0.5 ? 1 : (random < 0.8 ? 4 : 9);
   }
+}
+
+// Helper function to check if placement is safe distance from star
+function isSafeFromStar(objCoords: Coordinates3D, starCoords: Coordinates3D, starSize: number): boolean {
+  const distance = Math.sqrt(
+    Math.pow(objCoords.x - starCoords.x, 2) +
+    Math.pow(objCoords.y - starCoords.y, 2) +
+    Math.pow(objCoords.z - starCoords.z, 2)
+  );
+
+  // Minimum safe distances based on star size
+  if (starSize === 27) return distance >= 0.3; // Large stars need 0.3 unit buffer
+  if (starSize === 9) return distance >= 0.2;  // Medium stars need 0.2 unit buffer
+  return distance >= 0.1; // Small stars need 0.1 unit buffer
+}
+
+// Generate safe coordinates within 5x5x5 system, avoiding star
+function generateSafeCoordinate(baseCoord: Coordinates3D, starCoords: Coordinates3D, starSize: number): Coordinates3D | null {
+  const maxAttempts = 20;
+
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    const coords = {
+      x: generateSubCoordinate(baseCoord.x),
+      y: generateSubCoordinate(baseCoord.y),
+      z: generateSubCoordinate(baseCoord.z)
+    };
+
+    if (isSafeFromStar(coords, starCoords, starSize)) {
+      return coords;
+    }
+  }
+
+  return null; // Couldn't find safe placement
 }
 
 function generateStarSystem(coordinates: Coordinates3D, systemType: SystemType): StarSystem {
   const systemId = `system_${coordinateToString(coordinates)}`;
   
   const starSize = generateStarSize(systemType);
+  // Star goes at center of 5x5x5 system (2,2,2) = coordinates + 0.2
+  const starCoordinates = {
+    x: coordinates.x + 0.2,
+    y: coordinates.y + 0.2,
+    z: coordinates.z + 0.2
+  };
   const star: CelestialBody = {
     id: `${systemId}_star`,
     type: 'star',
-    coordinates,
+    coordinates: starCoordinates,
     size: starSize,
     name: `${systemType.name.split(' ')[0]} Star ${systemId.slice(-6)}`,
     resources: []
   };
 
+  // Adjust planet count based on star size
+  let maxPlanetsForStar = systemType.maxPlanets;
+  if (starSize === 27) {
+    maxPlanetsForStar = Math.min(systemType.maxPlanets, 3); // Large stars: fewer planets
+  } else if (starSize === 9) {
+    maxPlanetsForStar = Math.min(systemType.maxPlanets, 5); // Medium stars: moderate planets
+  }
+  // Small stars can have full planet count
+
   const planetCount = Math.floor(
-    Math.random() * (systemType.maxPlanets - systemType.minPlanets + 1)
+    Math.random() * (maxPlanetsForStar - systemType.minPlanets + 1)
   ) + systemType.minPlanets;
-  
+
   const planets: CelestialBody[] = [];
   for (let i = 0; i < planetCount; i++) {
-    const planetCoord: Coordinates3D = {
-      x: generateSubCoordinate(coordinates.x),
-      y: generateSubCoordinate(coordinates.y),
-      z: generateSubCoordinate(coordinates.z)
-    };
+    const planetCoord = generateSafeCoordinate(coordinates, starCoordinates, starSize);
 
-    const planetSize = generatePlanetSize(systemType);
-    planets.push({
-      id: `${systemId}_planet_${i}`,
-      type: 'planet',
-      coordinates: planetCoord,
-      size: planetSize,
-      name: `Planet ${systemId.slice(-6)}-${i + 1}`,
-      resources: []
-    });
-  }
-
-  const asteroids: CelestialBody[] = [];
-  if (systemType.hasAsteroidBelt) {
-    const asteroidCount = Math.floor(Math.random() * 8) + 3;
-    for (let i = 0; i < asteroidCount; i++) {
-      const asteroidCoord: Coordinates3D = {
-        x: generateSubCoordinate(coordinates.x),
-        y: generateSubCoordinate(coordinates.y),
-        z: generateSubCoordinate(coordinates.z)
-      };
-
-      asteroids.push({
-        id: `${systemId}_asteroid_${i}`,
-        type: 'asteroid',
-        coordinates: asteroidCoord,
-        size: 1,
-        name: `Asteroid ${systemId.slice(-6)}-A${i + 1}`,
+    if (planetCoord) {
+      const planetSize = generatePlanetSize(starSize);
+      planets.push({
+        id: `${systemId}_planet_${i}`,
+        type: 'planet',
+        coordinates: planetCoord,
+        size: planetSize,
+        name: `Planet ${systemId.slice(-6)}-${i + 1}`,
         resources: []
       });
     }
   }
 
-  const stations: CelestialBody[] = [];
-  if (Math.random() < systemType.stationProbability) {
-    const stationCoord: Coordinates3D = {
-      x: generateSubCoordinate(coordinates.x),
-      y: generateSubCoordinate(coordinates.y),
-      z: generateSubCoordinate(coordinates.z)
-    };
-
-    // Assign station class based on system type and randomness
-    const stationClasses: ('A' | 'B' | 'C' | 'D' | 'E')[] = ['A', 'B', 'C', 'D', 'E'];
-    const classWeights = systemType.name.includes('Solar') ? [0.3, 0.3, 0.2, 0.15, 0.05] :
-                        systemType.name.includes('Binary') ? [0.2, 0.25, 0.25, 0.2, 0.1] :
-                        [0.1, 0.2, 0.3, 0.25, 0.15]; // Default weights
-
-    const randomValue = Math.random();
-    let cumulativeWeight = 0;
-    let stationClass: 'A' | 'B' | 'C' | 'D' | 'E' = 'C';
-    for (let i = 0; i < stationClasses.length; i++) {
-      cumulativeWeight += classWeights[i];
-      if (randomValue < cumulativeWeight) {
-        stationClass = stationClasses[i];
-        break;
-      }
+  const asteroids: CelestialBody[] = [];
+  if (systemType.hasAsteroidBelt) {
+    // Reduce asteroid count for large stars
+    let asteroidCount = Math.floor(Math.random() * 8) + 3;
+    if (starSize === 27) {
+      asteroidCount = Math.min(asteroidCount, 4); // Large stars: fewer asteroids
     }
 
-    stations.push({
-      id: `${systemId}_station`,
-      type: 'station',
-      coordinates: stationCoord,
-      size: 1,
-      name: `${systemType.name.split(' ')[0]}-type Station`,
-      resources: [],
-      stationClass
-    });
+    for (let i = 0; i < asteroidCount; i++) {
+      const asteroidCoord = generateSafeCoordinate(coordinates, starCoordinates, starSize);
+
+      if (asteroidCoord) {
+        asteroids.push({
+          id: `${systemId}_asteroid_${i}`,
+          type: 'asteroid',
+          coordinates: asteroidCoord,
+          size: 1, // Asteroids are always 1 zone
+          name: `Asteroid ${systemId.slice(-6)}-A${i + 1}`,
+          resources: []
+        });
+      }
+    }
+  }
+
+  const stations: CelestialBody[] = [];
+  if (Math.random() < systemType.stationProbability) {
+    const stationCoord = generateSafeCoordinate(coordinates, starCoordinates, starSize);
+
+    if (stationCoord) {
+      // Assign station class based on system type and randomness
+      const stationClasses: ('A' | 'B' | 'C' | 'D' | 'E')[] = ['A', 'B', 'C', 'D', 'E'];
+      const classWeights = systemType.name.includes('Solar') ? [0.3, 0.3, 0.2, 0.15, 0.05] :
+                          systemType.name.includes('Binary') ? [0.2, 0.25, 0.25, 0.2, 0.1] :
+                          [0.1, 0.2, 0.3, 0.25, 0.15]; // Default weights
+
+      const randomValue = Math.random();
+      let cumulativeWeight = 0;
+      let stationClass: 'A' | 'B' | 'C' | 'D' | 'E' = 'C';
+      for (let i = 0; i < stationClasses.length; i++) {
+        cumulativeWeight += classWeights[i];
+        if (randomValue < cumulativeWeight) {
+          stationClass = stationClasses[i];
+          break;
+        }
+      }
+
+      stations.push({
+        id: `${systemId}_station`,
+        type: 'station',
+        coordinates: stationCoord,
+        size: 1, // Stations are always 1 zone
+        name: `${systemType.name.split(' ')[0]}-type Station`,
+        resources: [],
+        stationClass
+      });
+    }
   }
 
   return {

@@ -169,15 +169,22 @@ export class ScanningService {
     const currentPlayers = await findPlayersExcludingCurrent(currentCoords)(0.05);
     const currentProbes = await findActiveProbes(currentCoords)(0.05);
 
-    // Define adjacent coordinates - these should represent the centers of adjacent 0.1-unit zones
-    const adjacentCoords = {
-      north: { x: currentCoords.x, y: currentCoords.y + 0.1, z: currentCoords.z },
-      south: { x: currentCoords.x, y: currentCoords.y - 0.1, z: currentCoords.z },
-      east: { x: currentCoords.x + 0.1, y: currentCoords.y, z: currentCoords.z },
-      west: { x: currentCoords.x - 0.1, y: currentCoords.y, z: currentCoords.z },
-      up: { x: currentCoords.x, y: currentCoords.y, z: currentCoords.z + 0.1 },
-      down: { x: currentCoords.x, y: currentCoords.y, z: currentCoords.z - 0.1 }
-    };
+    // Define adjacent coordinates - only include zones within 5x5x5 system (0.0-0.4 range)
+    const adjacentCoords: any = {};
+    const systemX = Math.floor(currentCoords.x);
+    const systemY = Math.floor(currentCoords.y);
+    const systemZ = Math.floor(currentCoords.z);
+    const zoneX = currentCoords.x - systemX;
+    const zoneY = currentCoords.y - systemY;
+    const zoneZ = currentCoords.z - systemZ;
+
+    // Only add directions that stay within 5x5x5 bounds
+    if (zoneY + 0.1 <= 0.4) adjacentCoords.north = { x: currentCoords.x, y: currentCoords.y + 0.1, z: currentCoords.z };
+    if (zoneY - 0.1 >= 0.0) adjacentCoords.south = { x: currentCoords.x, y: currentCoords.y - 0.1, z: currentCoords.z };
+    if (zoneX + 0.1 <= 0.4) adjacentCoords.east = { x: currentCoords.x + 0.1, y: currentCoords.y, z: currentCoords.z };
+    if (zoneX - 0.1 >= 0.0) adjacentCoords.west = { x: currentCoords.x - 0.1, y: currentCoords.y, z: currentCoords.z };
+    if (zoneZ + 0.1 <= 0.4) adjacentCoords.up = { x: currentCoords.x, y: currentCoords.y, z: currentCoords.z + 0.1 };
+    if (zoneZ - 0.1 >= 0.0) adjacentCoords.down = { x: currentCoords.x, y: currentCoords.y, z: currentCoords.z - 0.1 };
 
     // Scan adjacent zones - use larger range to capture entities in neighboring zones
     const adjacentZones: any = {};
