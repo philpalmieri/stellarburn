@@ -1,12 +1,12 @@
 import { MongoClient } from 'mongodb';
-import { 
-  UniverseConfig, 
-  SystemType, 
-  StarSystem, 
-  CelestialBody, 
-  Coordinates3D, 
+import {
+  UniverseConfig,
+  SystemType,
+  StarSystem,
+  CelestialBody,
+  Coordinates3D,
   SectorDocument,
-  coordinateToString 
+  coordinateToString
 } from '@stellarburn/shared';
 
 const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://stellarburn:stellarburn_dev@mongodb:27017/stellarburn?authSource=admin';
@@ -251,34 +251,34 @@ function generateStarSystem(coordinates: Coordinates3D, systemType: SystemType):
       const asteroidCount = asteroids.length;
       const planetCount = planets.length;
 
-      let stationType: string;
+      let stationType: 'trade' | 'military' | 'shipyard' | 'mining' | 'research';
       let stationClass: 'A' | 'B' | 'C' | 'D' | 'E';
       let stationName: string;
 
       // Logic for station type selection
       if (hasAsteroids && asteroidCount >= 5) {
         // Systems with lots of asteroids get mining stations
-        stationType = 'Mining';
+        stationType = 'mining';
         stationClass = 'B';
         stationName = 'Mining Station';
       } else if (systemType.name.includes('Binary') || systemType.name.includes('Dense')) {
         // Binary and dense systems often have military presence
-        stationType = 'Military';
+        stationType = 'military';
         stationClass = 'A';
         stationName = 'Military Station';
       } else if (systemType.name.includes('Solar') && planetCount >= 3) {
         // Solar systems with multiple planets become trading hubs
-        stationType = 'Trading';
+        stationType = 'trade';
         stationClass = 'C';
         stationName = 'Trading Hub';
       } else if (systemType.resourceRichness >= 0.7) {
         // Resource-rich systems get research stations
-        stationType = 'Research';
+        stationType = 'research';
         stationClass = 'D';
         stationName = 'Research Station';
       } else {
-        // Default to frontier outposts
-        stationType = 'Outpost';
+        // Default to frontier outposts - using shipyard as closest to "outpost"
+        stationType = 'shipyard';
         stationClass = 'E';
         stationName = 'Frontier Outpost';
       }
@@ -307,43 +307,137 @@ function generateStarSystem(coordinates: Coordinates3D, systemType: SystemType):
   };
 }
 
+function generateCenterSystem(): any {
+  const centerCoordinates = { x: 0, y: 0, z: 0 };
+  const systemId = 'system_0,0,0';
+
+  // Small star at center of system
+  const starCoordinates = { x: 0.2, y: 0.2, z: 0.2 };
+  const star: CelestialBody = {
+    id: `${systemId}_star`,
+    type: 'star',
+    coordinates: starCoordinates,
+    size: 1, // Small star
+    name: 'Sol Central',
+    resources: []
+  };
+
+  // Fixed layout: 2 planets
+  const planets: CelestialBody[] = [
+    {
+      id: `${systemId}_planet_0`,
+      type: 'planet',
+      coordinates: { x: 0.1, y: 0.1, z: 0.1 },
+      size: 1,
+      name: 'Haven Prime',
+      resources: []
+    },
+    {
+      id: `${systemId}_planet_1`,
+      type: 'planet',
+      coordinates: { x: 0.3, y: 0.3, z: 0.1 }, // This planet will have the station
+      size: 1,
+      name: 'Terra Nova',
+      resources: []
+    }
+  ];
+
+  // Asteroid belt around the system
+  const asteroids: CelestialBody[] = [];
+  const asteroidPositions = [
+    { x: 0.0, y: 0.0, z: 0.3 },
+    { x: 0.1, y: 0.3, z: 0.3 },
+    { x: 0.3, y: 0.0, z: 0.0 },
+    { x: 0.4, y: 0.1, z: 0.2 },
+    { x: 0.0, y: 0.4, z: 0.1 },
+    { x: 0.2, y: 0.4, z: 0.4 },
+    { x: 0.4, y: 0.4, z: 0.0 },
+    { x: 0.1, y: 0.0, z: 0.4 },
+    { x: 0.4, y: 0.3, z: 0.4 },
+    { x: 0.0, y: 0.2, z: 0.0 },
+    { x: 0.4, y: 0.0, z: 0.3 },
+    { x: 0.2, y: 0.0, z: 0.1 }
+  ];
+
+  asteroidPositions.forEach((coords, i) => {
+    asteroids.push({
+      id: `${systemId}_asteroid_${i}`,
+      type: 'asteroid',
+      coordinates: coords,
+      size: 1,
+      name: `Central Belt A${i + 1}`,
+      resources: []
+    });
+  });
+
+  // Trading station orbiting Terra Nova planet
+  const station: CelestialBody = {
+    id: `${systemId}_station`,
+    type: 'station',
+    coordinates: { x: 0.3, y: 0.3, z: 0.1 }, // Same as Terra Nova - orbiting it
+    size: 1,
+    name: 'Haven Station',
+    resources: [],
+    stationClass: 'A' as const, // High-class station
+    stationType: 'trade' as const,
+    credits: 1000000, // Plenty of credits for trading
+    inventory: [], // Will be populated by station inventory service
+    isHavenStation: true // Special marker for comprehensive inventory
+  };
+
+  return {
+    coordinates: '0,0,0',
+    coord: centerCoordinates,
+    staticObjects: [star, ...planets, ...asteroids, station],
+    dynamicObjects: {
+      ships: [],
+      probes: []
+    },
+    lastActivity: new Date(),
+    createdAt: new Date()
+  };
+}
+
 export async function generateUniverse(config: UniverseConfig, clearExisting: boolean = false) {
   const client = new MongoClient(MONGODB_URI);
-  
+
   try {
     await client.connect();
     console.log('✅ Connected to MongoDB');
-    
+
     const db = client.db('stellarburn');
     const sectorsCollection = db.collection('sectors');
-    
+
     if (clearExisting) {
       console.log('🗑️  Clearing existing universe data...');
       await sectorsCollection.deleteMany({});
     }
 
+    // Always generate the center system first
+    console.log('🏛️  Generating center safe zone system...');
+    const centerSystem = generateCenterSystem();
+    const generatedSystems: any[] = [centerSystem];
+    const usedCoordinates = new Set<string>(['0,0,0']);
+
     const maxPossibleSectors = Math.pow(config.size * 2, 3);
-    const systemsToGenerate = Math.floor(maxPossibleSectors * config.sparsity);
-    
-    console.log(`🎲 Generating ${systemsToGenerate} star systems with fixed coordinate precision...`);
-    
-    const generatedSystems: any[] = [];
-    const usedCoordinates = new Set<string>();
-    
+    const systemsToGenerate = Math.floor(maxPossibleSectors * config.sparsity) - 1; // -1 for center system
+
+    console.log(`🎲 Generating ${systemsToGenerate} additional star systems with fixed coordinate precision...`);
+
     for (let i = 0; i < systemsToGenerate; i++) {
       let coordinates: Coordinates3D;
       let coordString: string;
-      
+
       do {
         coordinates = generateRandomCoordinate(config.size);
         coordString = coordinateToString(coordinates);
       } while (usedCoordinates.has(coordString));
-      
+
       usedCoordinates.add(coordString);
-      
+
       const systemType = selectSystemType();
       const starSystem = generateStarSystem(coordinates, systemType);
-      
+
       const sector = {
         coordinates: coordString,
         coord: coordinates,
@@ -355,22 +449,23 @@ export async function generateUniverse(config: UniverseConfig, clearExisting: bo
         lastActivity: new Date(),
         createdAt: new Date()
       };
-      
+
       generatedSystems.push(sector);
-      
+
       if ((i + 1) % 100 === 0) {
         console.log(`   Generated ${i + 1}/${systemsToGenerate} systems...`);
       }
     }
-    
+
     await sectorsCollection.insertMany(generatedSystems);
-    
+
     console.log('📊 Universe Generation Summary:');
-    console.log(`   Total systems generated: ${systemsToGenerate}`);
+    console.log(`   Total systems generated: ${generatedSystems.length} (including center system)`);
     console.log(`   Database sectors: ${await sectorsCollection.countDocuments()}`);
     console.log(`   Universe density: ${(config.sparsity * 100).toFixed(2)}%`);
+    console.log(`   Center safe zone created at (0,0,0)`);
     console.log(`   Fixed coordinate precision for clean display`);
-    
+
   } finally {
     await client.close();
   }

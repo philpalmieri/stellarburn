@@ -105,9 +105,9 @@ export const movePlayer = async (db: any, playerId: string, direction: string, d
     }
 
     const newCoordinates: Coordinates3D = {
-      x: player.coordinates.x + directionVector.x,
-      y: player.coordinates.y + directionVector.y,
-      z: player.coordinates.z + directionVector.z
+      x: Math.round((player.coordinates.x + directionVector.x) * 10) / 10,
+      y: Math.round((player.coordinates.y + directionVector.y) * 10) / 10,
+      z: Math.round((player.coordinates.z + directionVector.z) * 10) / 10
     };
 
     // Validate new coordinates stay within 5x5x5 zone system (0.0-0.4 range per sector)

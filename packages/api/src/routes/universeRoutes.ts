@@ -56,5 +56,20 @@ export function createUniverseRoutes() {
     }
   });
 
+  // Get all players including docked ones (for player selection UI)
+  router.get('/players/all', async (req, res) => {
+    try {
+      const db = getMongo('stellarburn');
+      const players = await db.collection('players')
+        .find({}, { projection: { id: 1, name: 1, coordinates: 1, dockedAt: 1 } })
+        .toArray();
+
+      res.json(players);
+    } catch (error) {
+      console.error('All players query error:', error);
+      res.status(500).json({ error: 'Failed to fetch all players' });
+    }
+  });
+
   return router;
 }

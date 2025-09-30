@@ -127,7 +127,16 @@ export async function autopilot(playerId: string, path: any[]) {
   try {
     let result;
     if (step.type === 'move') {
-      result = await movePlayer(playerId, step.direction);
+      try {
+        result = await movePlayer(playerId, step.direction);
+      } catch (error: any) {
+        // If move fails because it would exit system boundary, try jumping instead
+        if (error.message?.includes('would exit system boundary')) {
+          result = await jumpPlayer(playerId, step.direction);
+        } else {
+          throw error;
+        }
+      }
     } else if (step.type === 'jump') {
       result = await jumpPlayer(playerId, step.direction);
     } else {

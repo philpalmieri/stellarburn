@@ -9,6 +9,7 @@ interface PlayerInfo {
     y: number;
     z: number;
   };
+  dockedAt?: string;
 }
 
 function PlayerView() {
@@ -20,7 +21,7 @@ function PlayerView() {
   useEffect(() => {
     const fetchPlayers = async () => {
       try {
-        const response = await fetch('/api/universe/players');
+        const response = await fetch('/api/universe/players/all');
         const playersData = await response.json();
         setPlayers(playersData);
         setLoading(false);
@@ -81,6 +82,7 @@ function PlayerView() {
               {players.map((player) => (
                 <option key={player.id} value={player.id}>
                   {player.name} ({player.coordinates.x.toFixed(1)}, {player.coordinates.y.toFixed(1)}, {player.coordinates.z.toFixed(1)})
+                  {player.dockedAt ? ' [DOCKED]' : ''}
                 </option>
               ))}
             </select>

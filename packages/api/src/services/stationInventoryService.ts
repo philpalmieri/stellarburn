@@ -123,6 +123,55 @@ const createInventoryItem = (item: TradeItem, stationClass: 'A' | 'B' | 'C' | 'D
   };
 };
 
+// Generate comprehensive inventory for Haven Station (everything except military)
+export const generateHavenStationInventory = (): StationInventory[] => {
+  // Get all non-military items
+  const nonMilitaryItems = TRADE_ITEMS.filter(item => item.category !== 'military');
+
+  // Create inventory for all non-military items
+  const inventory: StationInventory[] = [];
+
+  // Add fuel and probes with unlimited quantity
+  const fuelItem = getItemById('fuel');
+  const probeItem = getItemById('probe');
+
+  if (fuelItem) {
+    inventory.push({
+      itemId: 'fuel',
+      quantity: 999,
+      buyPrice: 8,  // Slightly below normal
+      sellPrice: 12 // Fair prices for new players
+    });
+  }
+
+  if (probeItem) {
+    inventory.push({
+      itemId: 'probe',
+      quantity: 999,
+      buyPrice: 8,
+      sellPrice: 12
+    });
+  }
+
+  // Add all other non-military items with good availability
+  nonMilitaryItems
+    .filter(item => item.id !== 'fuel' && item.id !== 'probe')
+    .forEach(item => {
+      // Generate fair prices - small markup for new player friendliness
+      const marketFluctuation = (Math.random() - 0.5) * 0.1; // ±5% fluctuation
+      const marketPrice = Math.floor(item.basePrice * (1 + marketFluctuation));
+
+      inventory.push({
+        itemId: item.id,
+        quantity: 20, // Good availability for all items
+        buyPrice: Math.floor(marketPrice * 0.85), // Station buys at 85% of market
+        sellPrice: Math.floor(marketPrice * 1.15)  // Station sells at 115% of market
+      });
+    });
+
+  return inventory;
+};
+
 // Generate initial inventory for a station based on its type and class
 export const generateStationInventoryByType = (stationType: keyof typeof STATION_TYPES): StationInventory[] => {
   const stationConfig = STATION_TYPES[stationType];
@@ -190,7 +239,15 @@ export const seedAllStationInventories = async (db: any): Promise<void> => {
         continue;
       }
 
-      const inventory = generateStationInventory(station.stationClass);
+      let inventory: StationInventory[];
+
+      // Special handling for Haven Station
+      if (station.isHavenStation) {
+        console.log(`🏛️  Generating comprehensive inventory for Haven Station`);
+        inventory = generateHavenStationInventory();
+      } else {
+        inventory = generateStationInventory(station.stationClass);
+      }
 
       // Add inventory to the station object
       station.inventory = inventory;

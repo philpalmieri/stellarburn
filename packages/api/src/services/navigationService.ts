@@ -262,7 +262,7 @@ const planSystemMovement = (from: Coordinates3D, to: Coordinates3D): NavigationS
       (remaining > 0 ? stepSize : -stepSize);
 
     const next = { ...current };
-    next.x += step;
+    next.x = Math.round((current.x + step) * 10) / 10; // Fix floating point precision
 
     steps.push({
       type: 'move',
@@ -284,7 +284,7 @@ const planSystemMovement = (from: Coordinates3D, to: Coordinates3D): NavigationS
       (remaining > 0 ? stepSize : -stepSize);
 
     const next = { ...current };
-    next.y += step;
+    next.y = Math.round((current.y + step) * 10) / 10; // Fix floating point precision
 
     steps.push({
       type: 'move',
@@ -306,7 +306,7 @@ const planSystemMovement = (from: Coordinates3D, to: Coordinates3D): NavigationS
       (remaining > 0 ? stepSize : -stepSize);
 
     const next = { ...current };
-    next.z += step;
+    next.z = Math.round((current.z + step) * 10) / 10; // Fix floating point precision
 
     steps.push({
       type: 'move',
@@ -390,6 +390,22 @@ export const plotCourse = async (db: any, fromStr: string, toStr: string): Promi
           const direction = currentSysX < toSystem.x ? 'east' : 'west';
           const nextSysX = currentSysX + (currentSysX < toSystem.x ? 1 : -1);
 
+          // Calculate edge coordinate we need to reach before jumping
+          const edgeCoord = {
+            x: direction === 'east' ? currentSysX + 0.4 : currentSysX + 0.0,
+            y: current.y,
+            z: current.z
+          };
+
+          // First, move to edge if not already there
+          const tolerance = 0.001;
+          if (Math.abs(current.x - edgeCoord.x) > tolerance ||
+              Math.abs(current.y - edgeCoord.y) > tolerance ||
+              Math.abs(current.z - edgeCoord.z) > tolerance) {
+            allSteps.push(...planSystemMovement(current, edgeCoord));
+            current = { ...edgeCoord };
+          }
+
           const landingCoord = {
             x: nextSysX + (direction === 'east' ? 0.0 : 0.4),
             y: getSystemCoords(current).y + 0.2,
@@ -416,6 +432,22 @@ export const plotCourse = async (db: any, fromStr: string, toStr: string): Promi
           const direction = currentSysY < toSystem.y ? 'north' : 'south';
           const nextSysY = currentSysY + (currentSysY < toSystem.y ? 1 : -1);
 
+          // Calculate edge coordinate we need to reach before jumping
+          const edgeCoord = {
+            x: current.x,
+            y: direction === 'north' ? currentSysY + 0.4 : currentSysY + 0.0,
+            z: current.z
+          };
+
+          // First, move to edge if not already there
+          const tolerance = 0.001;
+          if (Math.abs(current.x - edgeCoord.x) > tolerance ||
+              Math.abs(current.y - edgeCoord.y) > tolerance ||
+              Math.abs(current.z - edgeCoord.z) > tolerance) {
+            allSteps.push(...planSystemMovement(current, edgeCoord));
+            current = { ...edgeCoord };
+          }
+
           const landingCoord = {
             x: getSystemCoords(current).x + 0.2,
             y: nextSysY + (direction === 'north' ? 0.0 : 0.4),
@@ -441,6 +473,22 @@ export const plotCourse = async (db: any, fromStr: string, toStr: string): Promi
           const currentSysZ = getSystemCoords(current).z;
           const direction = currentSysZ < toSystem.z ? 'up' : 'down';
           const nextSysZ = currentSysZ + (currentSysZ < toSystem.z ? 1 : -1);
+
+          // Calculate edge coordinate we need to reach before jumping
+          const edgeCoord = {
+            x: current.x,
+            y: current.y,
+            z: direction === 'up' ? currentSysZ + 0.4 : currentSysZ + 0.0
+          };
+
+          // First, move to edge if not already there
+          const tolerance = 0.001;
+          if (Math.abs(current.x - edgeCoord.x) > tolerance ||
+              Math.abs(current.y - edgeCoord.y) > tolerance ||
+              Math.abs(current.z - edgeCoord.z) > tolerance) {
+            allSteps.push(...planSystemMovement(current, edgeCoord));
+            current = { ...edgeCoord };
+          }
 
           const landingCoord = {
             x: getSystemCoords(current).x + 0.2,

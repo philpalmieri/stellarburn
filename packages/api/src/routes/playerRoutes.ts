@@ -55,30 +55,23 @@ export function createPlayerRoutes() {
         return res.status(409).json({ error: 'Player name already exists' });
       }
       
-      // Find safe spawn location
-      const sectors = await db.collection('sectors').find({}).toArray();
-      let spawnCoordinates = { x: 0.2, y: 0.2, z: 0.2 };
-      
-      for (const sector of sectors.slice(0, 10)) {
-        const largeObjects = sector.staticObjects.filter((obj: any) => obj.size > 10);
-        if (largeObjects.length === 0) {
-          spawnCoordinates = {
-            x: sector.coord.x + Math.floor(Math.random() * 5) * 0.1,
-            y: sector.coord.y + Math.floor(Math.random() * 5) * 0.1,
-            z: sector.coord.z + Math.floor(Math.random() * 5) * 0.1
-          };
-          break;
-        }
-      }
+      // Spawn at Haven Station in center system (0,0,0) - docked at the station
+      const spawnCoordinates = {
+        x: 0.3, // Haven Station coordinates
+        y: 0.3,
+        z: 0.1
+      };
       
       const newPlayer = {
         id: `player_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
         name,
         coordinates: spawnCoordinates,
+        dockedAt: 'system_0,0,0_station', // Docked at Haven Station
         ship: {
           fuel: 100,
           maxFuel: 100,
           cargo: [],
+          maxCargo: 50, // Add cargo capacity
           probes: 10,
           probeConfig: {
             maxFuel: 10,

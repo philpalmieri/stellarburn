@@ -34,6 +34,7 @@ export interface CelestialBody {
   stationType?: 'trade' | 'military' | 'shipyard' | 'mining' | 'research'; // Future use
   inventory?: StationInventory[]; // For stations only
   credits?: number; // For stations only
+  isHavenStation?: boolean; // Special marker for the center safe zone station
 }
 
 export interface ResourceDeposit {
