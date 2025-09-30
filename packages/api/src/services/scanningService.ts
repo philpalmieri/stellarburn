@@ -124,12 +124,12 @@ export class ScanningService {
 
     return {
       systemCoordinates: systemCoords,
-      objects: systemSector ? systemSector.staticObjects.map(enrichStationData) : [],
-      otherPlayers: systemPlayers.map((p: any) => ({
+      objects: systemSector?.staticObjects ? systemSector.staticObjects.map(enrichStationData) : [],
+      otherPlayers: (systemPlayers || []).map((p: any) => ({
         name: p.name,
         coordinates: p.coordinates
       })),
-      probes: systemProbes.map((probe: any) => ({
+      probes: (systemProbes || []).map((probe: any) => ({
         id: probe.id,
         playerId: probe.playerId,
         coordinates: probe.coordinates,

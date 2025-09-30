@@ -666,7 +666,7 @@ async function plotCourseTo(playerId: string, destination: string) {
   try {
     // First get player's current position
     const status = await getPlayerStatus(playerId);
-    const currentPos = `${status.coordinates.x},${status.coordinates.y},${status.coordinates.z}`;
+    const currentPos = `${status.coordinates.x.toFixed(1)},${status.coordinates.y.toFixed(1)},${status.coordinates.z.toFixed(1)}`;
 
     const result = await plotCourse(playerId, currentPos, destination) as any;
     console.log(chalk.blue(`=== Course Plot ===`));
@@ -699,7 +699,7 @@ async function gotoDestination(playerId: string, destination: string) {
   try {
     // First get player's current position
     const status = await getPlayerStatus(playerId);
-    const currentPos = `${status.coordinates.x},${status.coordinates.y},${status.coordinates.z}`;
+    const currentPos = `${status.coordinates.x.toFixed(1)},${status.coordinates.y.toFixed(1)},${status.coordinates.z.toFixed(1)}`;
 
     console.log(chalk.blue(`=== Navigation System ===`));
     console.log(chalk.yellow(`Current position: ${currentPos}`));
