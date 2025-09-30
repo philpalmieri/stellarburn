@@ -8,10 +8,13 @@ import { createUniverseRoutes } from './routes/universeRoutes.js';
 import { createProbeRoutes } from './routes/probeRoutes.js';
 import { createStationRoutes } from './routes/stationRoutes.js';
 import { getServices } from './services/serviceFactory.js';
+import { buildMongoDBUri } from './config/database.js';
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const MONGODB_URI = process.env.MONGODB_URI;
+
+// MongoDB connection configuration
+const MONGODB_URI = buildMongoDBUri();
 
 // Middleware
 app.use(helmet());
