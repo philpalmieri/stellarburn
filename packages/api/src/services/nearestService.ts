@@ -1,5 +1,5 @@
 import { Coordinates3D, coordinateToString } from '@stellarburn/shared';
-import { ExplorationService } from './explorationService.js';
+import { getKnownSystems } from './explorationService.js';
 
 // Functional utilities for distance and nearest calculations
 const calculateDistance3D = (from: Coordinates3D) => (to: Coordinates3D): number => {
@@ -43,136 +43,136 @@ export interface NearestResult {
   systemCoordinates?: Coordinates3D;
 }
 
-export class NearestService {
-  constructor(
-    private db: any,
-    private explorationService: ExplorationService
-  ) {}
+// Helper function to find nearest entity of a specific type from known systems
+const findNearestEntityOfType = async (db: any, playerId: string, entityType: 'station' | 'planet' | 'star'): Promise<NearestResult | null> => {
+  const player = await db.collection('players').findOne({ id: playerId });
+  if (!player) throw new Error('Player not found');
 
-  async findNearestStation(playerId: string): Promise<NearestResult | null> {
-    return this.findNearestEntityOfType(playerId, 'station');
+  // Get player's known systems
+  const knownSystemsResult = await getKnownSystems(db, playerId);
+  const knownSystems = knownSystemsResult.knownSystems;
+
+  let allEntities: any[] = [];
+
+  // Collect all entities of the specified type from known systems
+  for (const knownSector of knownSystems) {
+    const systemCoords = knownSector.coord;
+
+    if (knownSector?.staticObjects) {
+      const entitiesInSystem = knownSector.staticObjects
+        .filter(filterByType(entityType))
+        .map((entity: any) => ({
+          ...entity,
+          systemCoordinates: systemCoords
+        }));
+
+      allEntities.push(...entitiesInSystem);
+    }
   }
 
-  async findNearestPlanet(playerId: string): Promise<NearestResult | null> {
-    return this.findNearestEntityOfType(playerId, 'planet');
-  }
+  if (allEntities.length === 0) return null;
 
-  async findNearestStar(playerId: string): Promise<NearestResult | null> {
-    return this.findNearestEntityOfType(playerId, 'star');
-  }
+  const findClosest = findClosestEntity(player.coordinates);
+  const closest = findClosest(allEntities);
 
-  async findNearestPlayer(playerId: string): Promise<NearestResult | null> {
-    const player = await this.db.collection('players').findOne({ id: playerId });
-    if (!player) throw new Error('Player not found');
+  return closest ? {
+    type: entityType,
+    name: closest.name,
+    coordinates: closest.coordinates,
+    distance: closest.distance,
+    systemCoordinates: closest.systemCoordinates
+  } : null;
+};
 
-    const otherPlayers = await this.db.collection('players').find({
-      id: { $ne: playerId },
-      dockedAt: { $exists: false }
-    }).toArray();
+// Find nearest station for a player
+export const findNearestStation = async (db: any, playerId: string): Promise<NearestResult | null> => {
+  return findNearestEntityOfType(db, playerId, 'station');
+};
 
-    if (otherPlayers.length === 0) return null;
+// Find nearest planet for a player
+export const findNearestPlanet = async (db: any, playerId: string): Promise<NearestResult | null> => {
+  return findNearestEntityOfType(db, playerId, 'planet');
+};
 
-    const findClosest = findClosestEntity(player.coordinates);
-    const closest = findClosest(otherPlayers);
+// Find nearest star for a player
+export const findNearestStar = async (db: any, playerId: string): Promise<NearestResult | null> => {
+  return findNearestEntityOfType(db, playerId, 'star');
+};
 
-    return closest ? {
-      type: 'player',
-      name: closest.name,
-      coordinates: closest.coordinates,
-      distance: closest.distance
-    } : null;
-  }
+// Find nearest other player
+export const findNearestPlayer = async (db: any, playerId: string): Promise<NearestResult | null> => {
+  const player = await db.collection('players').findOne({ id: playerId });
+  if (!player) throw new Error('Player not found');
 
-  async findNearestProbe(playerId: string): Promise<NearestResult | null> {
-    const player = await this.db.collection('players').findOne({ id: playerId });
-    if (!player) throw new Error('Player not found');
+  const otherPlayers = await db.collection('players').find({
+    id: { $ne: playerId },
+    dockedAt: { $exists: false }
+  }).toArray();
 
-    const activeProbes = await this.db.collection('probes').find({
-      status: 'active'
-    }).toArray();
+  if (otherPlayers.length === 0) return null;
 
-    if (activeProbes.length === 0) return null;
+  const findClosest = findClosestEntity(player.coordinates);
+  const closest = findClosest(otherPlayers);
 
-    const findClosest = findClosestEntity(player.coordinates);
-    const closest = findClosest(activeProbes);
+  return closest ? {
+    type: 'player',
+    name: closest.name,
+    coordinates: closest.coordinates,
+    distance: closest.distance
+  } : null;
+};
 
-    return closest ? {
-      type: 'probe',
-      name: `Probe ${closest.id.slice(-6)}`,
-      coordinates: closest.coordinates,
-      distance: closest.distance
-    } : null;
-  }
+// Find nearest active probe
+export const findNearestProbe = async (db: any, playerId: string): Promise<NearestResult | null> => {
+  const player = await db.collection('players').findOne({ id: playerId });
+  if (!player) throw new Error('Player not found');
 
-  private async findNearestEntityOfType(playerId: string, entityType: 'station' | 'planet' | 'star'): Promise<NearestResult | null> {
-    const player = await this.db.collection('players').findOne({ id: playerId });
-    if (!player) throw new Error('Player not found');
+  const activeProbes = await db.collection('probes').find({
+    status: 'active'
+  }).toArray();
 
-    // Get player's known systems
-    const knownSystemsResult = await this.explorationService.getKnownSystems(playerId);
-    const knownSystems = knownSystemsResult.knownSystems;
+  if (activeProbes.length === 0) return null;
 
-    let allEntities: any[] = [];
+  const findClosest = findClosestEntity(player.coordinates);
+  const closest = findClosest(activeProbes);
 
-    // Collect all entities of the specified type from known systems
-    for (const knownSector of knownSystems) {
-      const systemCoords = knownSector.coord;
+  return closest ? {
+    type: 'probe',
+    name: `Probe ${closest.id.slice(-6)}`,
+    coordinates: closest.coordinates,
+    distance: closest.distance
+  } : null;
+};
 
-      if (knownSector?.staticObjects) {
-        const entitiesInSystem = knownSector.staticObjects
-          .filter(filterByType(entityType))
-          .map((entity: any) => ({
-            ...entity,
-            systemCoordinates: systemCoords
-          }));
+// Find nearest objects of multiple types and return sorted by distance
+export const findNearestOfAnyType = async (db: any, playerId: string, types: string[]): Promise<NearestResult[]> => {
+  const results: NearestResult[] = [];
 
-        allEntities.push(...entitiesInSystem);
-      }
+  for (const type of types) {
+    let result: NearestResult | null = null;
+
+    switch (type) {
+      case 'station':
+        result = await findNearestStation(db, playerId);
+        break;
+      case 'planet':
+        result = await findNearestPlanet(db, playerId);
+        break;
+      case 'star':
+        result = await findNearestStar(db, playerId);
+        break;
+      case 'player':
+        result = await findNearestPlayer(db, playerId);
+        break;
+      case 'probe':
+        result = await findNearestProbe(db, playerId);
+        break;
     }
 
-    if (allEntities.length === 0) return null;
-
-    const findClosest = findClosestEntity(player.coordinates);
-    const closest = findClosest(allEntities);
-
-    return closest ? {
-      type: entityType,
-      name: closest.name,
-      coordinates: closest.coordinates,
-      distance: closest.distance,
-      systemCoordinates: closest.systemCoordinates
-    } : null;
-  }
-
-  async findNearestOfAnyType(playerId: string, types: string[]): Promise<NearestResult[]> {
-    const results: NearestResult[] = [];
-
-    for (const type of types) {
-      let result: NearestResult | null = null;
-
-      switch (type) {
-        case 'station':
-          result = await this.findNearestStation(playerId);
-          break;
-        case 'planet':
-          result = await this.findNearestPlanet(playerId);
-          break;
-        case 'star':
-          result = await this.findNearestStar(playerId);
-          break;
-        case 'player':
-          result = await this.findNearestPlayer(playerId);
-          break;
-        case 'probe':
-          result = await this.findNearestProbe(playerId);
-          break;
-      }
-
-      if (result) {
-        results.push(result);
-      }
+    if (result) {
+      results.push(result);
     }
-
-    return sortByDistance(results);
   }
-}
+
+  return sortByDistance(results);
+};

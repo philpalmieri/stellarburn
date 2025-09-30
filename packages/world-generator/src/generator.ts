@@ -246,21 +246,41 @@ function generateStarSystem(coordinates: Coordinates3D, systemType: SystemType):
     const stationCoord = generateSafeCoordinate(coordinates, starCoordinates, starSize);
 
     if (stationCoord) {
-      // Assign station class based on system type and randomness
-      const stationClasses: ('A' | 'B' | 'C' | 'D' | 'E')[] = ['A', 'B', 'C', 'D', 'E'];
-      const classWeights = systemType.name.includes('Solar') ? [0.3, 0.3, 0.2, 0.15, 0.05] :
-                          systemType.name.includes('Binary') ? [0.2, 0.25, 0.25, 0.2, 0.1] :
-                          [0.1, 0.2, 0.3, 0.25, 0.15]; // Default weights
+      // Determine station type based on system characteristics
+      const hasAsteroids = systemType.hasAsteroidBelt;
+      const asteroidCount = asteroids.length;
+      const planetCount = planets.length;
 
-      const randomValue = Math.random();
-      let cumulativeWeight = 0;
-      let stationClass: 'A' | 'B' | 'C' | 'D' | 'E' = 'C';
-      for (let i = 0; i < stationClasses.length; i++) {
-        cumulativeWeight += classWeights[i];
-        if (randomValue < cumulativeWeight) {
-          stationClass = stationClasses[i];
-          break;
-        }
+      let stationType: string;
+      let stationClass: 'A' | 'B' | 'C' | 'D' | 'E';
+      let stationName: string;
+
+      // Logic for station type selection
+      if (hasAsteroids && asteroidCount >= 5) {
+        // Systems with lots of asteroids get mining stations
+        stationType = 'Mining';
+        stationClass = 'B';
+        stationName = 'Mining Station';
+      } else if (systemType.name.includes('Binary') || systemType.name.includes('Dense')) {
+        // Binary and dense systems often have military presence
+        stationType = 'Military';
+        stationClass = 'A';
+        stationName = 'Military Station';
+      } else if (systemType.name.includes('Solar') && planetCount >= 3) {
+        // Solar systems with multiple planets become trading hubs
+        stationType = 'Trading';
+        stationClass = 'C';
+        stationName = 'Trading Hub';
+      } else if (systemType.resourceRichness >= 0.7) {
+        // Resource-rich systems get research stations
+        stationType = 'Research';
+        stationClass = 'D';
+        stationName = 'Research Station';
+      } else {
+        // Default to frontier outposts
+        stationType = 'Outpost';
+        stationClass = 'E';
+        stationName = 'Frontier Outpost';
       }
 
       stations.push({
@@ -268,9 +288,10 @@ function generateStarSystem(coordinates: Coordinates3D, systemType: SystemType):
         type: 'station',
         coordinates: stationCoord,
         size: 1, // Stations are always 1 zone
-        name: `${systemType.name.split(' ')[0]}-type Station`,
+        name: stationName,
         resources: [],
-        stationClass
+        stationClass,
+        stationType // Add station type for better identification
       });
     }
   }

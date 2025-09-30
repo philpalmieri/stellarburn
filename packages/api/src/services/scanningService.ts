@@ -1,5 +1,5 @@
 import { Coordinates3D, coordinateToString } from '@stellarburn/shared';
-import { ExplorationService } from './explorationService.js';
+import { trackPlayerExploration } from './explorationService.js';
 import { getItemById } from '../data/tradeItems.js';
 
 // Functional helper functions using currying and higher-order functions
@@ -79,132 +79,126 @@ const enrichStationData = (obj: any) => {
   return obj;
 };
 
-export class ScanningService {
-  constructor(
-    private db: any,
-    private explorationService: ExplorationService
-  ) {}
+// Helper function to get system coordinates from any coordinates
+const toSystemCoordinates = (coords: Coordinates3D): Coordinates3D => ({
+  x: Math.floor(coords.x),
+  y: Math.floor(coords.y),
+  z: Math.floor(coords.z)
+});
 
-  async performSystemScan(playerId: string) {
-    const player = await this.db.collection('players').findOne({ id: playerId });
-    if (!player) {
-      throw new Error('Player not found');
-    }
-    
-    const currentCoords = player.coordinates;
-    const systemCoords = {
-      x: Math.floor(currentCoords.x),
-      y: Math.floor(currentCoords.y),
-      z: Math.floor(currentCoords.z)
-    };
-    
-    // Track exploration automatically
-    await this.explorationService.trackPlayerExploration(playerId, currentCoords);
-    
-    // Get system data
-    const systemCoordString = coordinateToString(systemCoords);
-    const systemSector = await this.db.collection('sectors').findOne({ coordinates: systemCoordString });
-    
-    // Get other players in this system (exclude docked players)
-    const systemPlayers = await this.db.collection('players').find({
-      'coordinates.x': { $gte: systemCoords.x, $lt: systemCoords.x + 1 },
-      'coordinates.y': { $gte: systemCoords.y, $lt: systemCoords.y + 1 },
-      'coordinates.z': { $gte: systemCoords.z, $lt: systemCoords.z + 1 },
-      id: { $ne: playerId },
-      dockedAt: { $exists: false }
-    }).toArray();
+// Perform a system-wide scan for a player
+export const performSystemScan = async (db: any, playerId: string) => {
+  const player = await db.collection('players').findOne({ id: playerId });
+  if (!player) {
+    throw new Error('Player not found');
+  }
 
-    // Get probes in this system
-    const systemProbes = await this.db.collection('probes').find({
-      'coordinates.x': { $gte: systemCoords.x, $lt: systemCoords.x + 1 },
-      'coordinates.y': { $gte: systemCoords.y, $lt: systemCoords.y + 1 },
-      'coordinates.z': { $gte: systemCoords.z, $lt: systemCoords.z + 1 },
-      status: 'active'
-    }).toArray();
+  const currentCoords = player.coordinates;
+  const systemCoords = toSystemCoordinates(currentCoords);
 
-    return {
-      systemCoordinates: systemCoords,
-      objects: systemSector?.staticObjects ? systemSector.staticObjects.map(enrichStationData) : [],
-      otherPlayers: (systemPlayers || []).map((p: any) => ({
-        name: p.name,
-        coordinates: p.coordinates
-      })),
-      probes: (systemProbes || []).map((probe: any) => ({
-        id: probe.id,
-        playerId: probe.playerId,
-        coordinates: probe.coordinates,
-        fuel: probe.fuel,
-        status: probe.status
-      }))
+  // Track exploration automatically
+  await trackPlayerExploration(db, playerId, currentCoords);
+
+  // Get system data
+  const systemCoordString = coordinateToString(systemCoords);
+  const systemSector = await db.collection('sectors').findOne({ coordinates: systemCoordString });
+
+  // Get other players in this system (exclude docked players)
+  const systemPlayers = await db.collection('players').find({
+    'coordinates.x': { $gte: systemCoords.x, $lt: systemCoords.x + 1 },
+    'coordinates.y': { $gte: systemCoords.y, $lt: systemCoords.y + 1 },
+    'coordinates.z': { $gte: systemCoords.z, $lt: systemCoords.z + 1 },
+    id: { $ne: playerId },
+    dockedAt: { $exists: false }
+  }).toArray();
+
+  // Get probes in this system
+  const systemProbes = await db.collection('probes').find({
+    'coordinates.x': { $gte: systemCoords.x, $lt: systemCoords.x + 1 },
+    'coordinates.y': { $gte: systemCoords.y, $lt: systemCoords.y + 1 },
+    'coordinates.z': { $gte: systemCoords.z, $lt: systemCoords.z + 1 },
+    status: 'active'
+  }).toArray();
+
+  return {
+    systemCoordinates: systemCoords,
+    objects: systemSector?.staticObjects ? systemSector.staticObjects.map(enrichStationData) : [],
+    otherPlayers: (systemPlayers || []).map((p: any) => ({
+      name: p.name,
+      coordinates: p.coordinates
+    })),
+    probes: (systemProbes || []).map((probe: any) => ({
+      id: probe.id,
+      playerId: probe.playerId,
+      coordinates: probe.coordinates,
+      fuel: probe.fuel,
+      status: probe.status
+    }))
+  };
+};
+
+// Perform a local scan around player's current position
+export const performLocalScan = async (db: any, playerId: string) => {
+  const player = await db.collection('players').findOne({ id: playerId });
+  if (!player) {
+    throw new Error('Player not found');
+  }
+
+  // Track exploration
+  await trackPlayerExploration(db, playerId, player.coordinates);
+
+  const currentCoords = player.coordinates;
+  const systemCoords = toSystemCoordinates(currentCoords);
+
+  // Get system data for object detection
+  const systemCoordString = coordinateToString(systemCoords);
+  const systemSector = await db.collection('sectors').findOne({ coordinates: systemCoordString });
+
+  // Create partially applied functions for this scan session
+  const findObjectsInSystemSector = findObjectsNear(systemSector);
+  const findPlayersExcludingCurrent = findPlayersNear(db)(playerId);
+  const findActiveProbes = findProbesNear(db);
+
+  // Scan current zone - use larger range for objects you're right next to
+  const currentObjects = findObjectsInSystemSector(currentCoords)(0.1).map(enrichStationData);
+  const currentPlayers = await findPlayersExcludingCurrent(currentCoords)(0.05);
+  const currentProbes = await findActiveProbes(currentCoords)(0.05);
+
+  // Define adjacent coordinates - only include zones within 5x5x5 system (0.0-0.4 range)
+  const adjacentCoords: any = {};
+  const systemX = Math.floor(currentCoords.x);
+  const systemY = Math.floor(currentCoords.y);
+  const systemZ = Math.floor(currentCoords.z);
+  const zoneX = currentCoords.x - systemX;
+  const zoneY = currentCoords.y - systemY;
+  const zoneZ = currentCoords.z - systemZ;
+
+  // Only add directions that stay within 5x5x5 bounds
+  if (zoneY + 0.1 <= 0.4) adjacentCoords.north = { x: currentCoords.x, y: currentCoords.y + 0.1, z: currentCoords.z };
+  if (zoneY - 0.1 >= 0.0) adjacentCoords.south = { x: currentCoords.x, y: currentCoords.y - 0.1, z: currentCoords.z };
+  if (zoneX + 0.1 <= 0.4) adjacentCoords.east = { x: currentCoords.x + 0.1, y: currentCoords.y, z: currentCoords.z };
+  if (zoneX - 0.1 >= 0.0) adjacentCoords.west = { x: currentCoords.x - 0.1, y: currentCoords.y, z: currentCoords.z };
+  if (zoneZ + 0.1 <= 0.4) adjacentCoords.up = { x: currentCoords.x, y: currentCoords.y, z: currentCoords.z + 0.1 };
+  if (zoneZ - 0.1 >= 0.0) adjacentCoords.down = { x: currentCoords.x, y: currentCoords.y, z: currentCoords.z - 0.1 };
+
+  // Scan adjacent zones - use larger range to capture entities in neighboring zones
+  const adjacentZones: any = {};
+  for (const [direction, coords] of Object.entries(adjacentCoords)) {
+    adjacentZones[direction] = {
+      coordinates: coords,
+      objects: findObjectsInSystemSector(coords)(0.08).map(enrichStationData),
+      otherPlayers: await findPlayersExcludingCurrent(coords)(0.08), // Larger range to detect entities in adjacent zones
+      probes: await findActiveProbes(coords)(0.08)
     };
   }
 
-  async performLocalScan(playerId: string) {
-    const player = await this.db.collection('players').findOne({ id: playerId });
-    if (!player) {
-      throw new Error('Player not found');
-    }
-
-    // Track exploration
-    await this.explorationService.trackPlayerExploration(playerId, player.coordinates);
-
-    const currentCoords = player.coordinates;
-    const systemCoords = {
-      x: Math.floor(currentCoords.x),
-      y: Math.floor(currentCoords.y),
-      z: Math.floor(currentCoords.z)
-    };
-
-    // Get system data for object detection
-    const systemCoordString = coordinateToString(systemCoords);
-    const systemSector = await this.db.collection('sectors').findOne({ coordinates: systemCoordString });
-
-    // Create partially applied functions for this scan session
-    const findObjectsInSystemSector = findObjectsNear(systemSector);
-    const findPlayersExcludingCurrent = findPlayersNear(this.db)(playerId);
-    const findActiveProbes = findProbesNear(this.db);
-
-    // Scan current zone - use larger range for objects you're right next to
-    const currentObjects = findObjectsInSystemSector(currentCoords)(0.1).map(enrichStationData);
-    const currentPlayers = await findPlayersExcludingCurrent(currentCoords)(0.05);
-    const currentProbes = await findActiveProbes(currentCoords)(0.05);
-
-    // Define adjacent coordinates - only include zones within 5x5x5 system (0.0-0.4 range)
-    const adjacentCoords: any = {};
-    const systemX = Math.floor(currentCoords.x);
-    const systemY = Math.floor(currentCoords.y);
-    const systemZ = Math.floor(currentCoords.z);
-    const zoneX = currentCoords.x - systemX;
-    const zoneY = currentCoords.y - systemY;
-    const zoneZ = currentCoords.z - systemZ;
-
-    // Only add directions that stay within 5x5x5 bounds
-    if (zoneY + 0.1 <= 0.4) adjacentCoords.north = { x: currentCoords.x, y: currentCoords.y + 0.1, z: currentCoords.z };
-    if (zoneY - 0.1 >= 0.0) adjacentCoords.south = { x: currentCoords.x, y: currentCoords.y - 0.1, z: currentCoords.z };
-    if (zoneX + 0.1 <= 0.4) adjacentCoords.east = { x: currentCoords.x + 0.1, y: currentCoords.y, z: currentCoords.z };
-    if (zoneX - 0.1 >= 0.0) adjacentCoords.west = { x: currentCoords.x - 0.1, y: currentCoords.y, z: currentCoords.z };
-    if (zoneZ + 0.1 <= 0.4) adjacentCoords.up = { x: currentCoords.x, y: currentCoords.y, z: currentCoords.z + 0.1 };
-    if (zoneZ - 0.1 >= 0.0) adjacentCoords.down = { x: currentCoords.x, y: currentCoords.y, z: currentCoords.z - 0.1 };
-
-    // Scan adjacent zones - use larger range to capture entities in neighboring zones
-    const adjacentZones: any = {};
-    for (const [direction, coords] of Object.entries(adjacentCoords)) {
-      adjacentZones[direction] = {
-        coordinates: coords,
-        objects: findObjectsInSystemSector(coords)(0.08).map(enrichStationData),
-        otherPlayers: await findPlayersExcludingCurrent(coords)(0.08), // Larger range to detect entities in adjacent zones
-        probes: await findActiveProbes(coords)(0.08)
-      };
-    }
-
-    return {
-      currentZone: {
-        coordinates: currentCoords,
-        objects: currentObjects,
-        otherPlayers: currentPlayers,
-        probes: currentProbes
-      },
-      adjacentZones
-    };
-  }
-}
+  return {
+    currentZone: {
+      coordinates: currentCoords,
+      objects: currentObjects,
+      otherPlayers: currentPlayers,
+      probes: currentProbes
+    },
+    adjacentZones
+  };
+};

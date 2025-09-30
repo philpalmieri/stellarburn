@@ -1,7 +1,7 @@
 #!/usr/bin/env tsx
 
 import { MongoClient } from 'mongodb';
-import { StationInventoryService } from '../services/stationInventoryService.js';
+import { seedAllStationInventories } from '../services/stationInventoryService.js';
 
 const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://stellarburn:stellarburn_dev@mongodb:27017/stellarburn?authSource=admin';
 
@@ -32,9 +32,8 @@ async function seedStationInventory() {
 
     console.log(`📊 Found ${totalStations} stations in the universe`);
 
-    // Create inventory service and seed all stations
-    const inventoryService = new StationInventoryService(db);
-    await inventoryService.seedAllStationInventories();
+    // Seed all stations using functional approach
+    await seedAllStationInventories(db);
 
     console.log('🎉 Station inventory seeding completed successfully!');
 

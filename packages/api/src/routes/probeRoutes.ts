@@ -1,5 +1,6 @@
 import { Router } from 'express';
-import { getServices } from '../services/serviceFactory.js';
+import { getMongo } from '../services/databaseService.js';
+import { getAllActiveProbes } from '../services/probeService.js';
 
 export function createProbeRoutes() {
   const router = Router();
@@ -7,8 +8,8 @@ export function createProbeRoutes() {
   // Get all active probes (for universe visualization)
   router.get('/active', async (req, res) => {
     try {
-      const { probeService } = getServices();
-      const probes = await probeService.getAllActiveProbes();
+      const db = getMongo('stellarburn');
+      const probes = await getAllActiveProbes(db);
       res.json(probes);
     } catch (error) {
       console.error('Get all active probes error:', error);

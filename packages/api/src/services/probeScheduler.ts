@@ -1,27 +1,31 @@
-import { ProbeService } from './probeService.js';
+// Functional probe scheduler using closures to maintain state
+export interface ProbeSchedulerInterface {
+  start: () => void;
+  stop: () => void;
+  isActive: () => boolean;
+}
 
-export class ProbeScheduler {
-  private intervalId: NodeJS.Timeout | null = null;
-  private isRunning = false;
+// Higher-order function that creates a probe scheduler
+export const createProbeScheduler = (moveAllActiveProbes: () => Promise<any[]>): ProbeSchedulerInterface => {
+  let intervalId: NodeJS.Timeout | null = null;
+  let isRunning = false;
 
-  constructor(private probeService: ProbeService) {}
-
-  start() {
-    if (this.isRunning) {
+  const start = () => {
+    if (isRunning) {
       return;
     }
 
-    this.isRunning = true;
+    isRunning = true;
     console.log('🚀 Probe movement scheduler started');
 
-    this.intervalId = setInterval(async () => {
+    intervalId = setInterval(async () => {
       try {
-        const results = await this.probeService.moveAllActiveProbes();
+        const results = await moveAllActiveProbes();
         if (results.length > 0) {
           console.log(`📡 Moved ${results.length} active probes`);
 
           // Log destroyed probes
-          const destroyedProbes = results.filter(r => r.fuelExhausted);
+          const destroyedProbes = results.filter((r: any) => r.fuelExhausted);
           if (destroyedProbes.length > 0) {
             console.log(`💥 ${destroyedProbes.length} probes ran out of fuel and were destroyed`);
           }
@@ -30,18 +34,22 @@ export class ProbeScheduler {
         console.error('❌ Error in probe movement scheduler:', error);
       }
     }, 1000); // Move probes every 1 second
-  }
+  };
 
-  stop() {
-    if (this.intervalId) {
-      clearInterval(this.intervalId);
-      this.intervalId = null;
+  const stop = () => {
+    if (intervalId) {
+      clearInterval(intervalId);
+      intervalId = null;
     }
-    this.isRunning = false;
+    isRunning = false;
     console.log('🛑 Probe movement scheduler stopped');
-  }
+  };
 
-  isActive() {
-    return this.isRunning;
-  }
-}
+  const isActive = () => isRunning;
+
+  return {
+    start,
+    stop,
+    isActive
+  };
+};

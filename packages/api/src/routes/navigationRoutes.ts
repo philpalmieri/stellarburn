@@ -1,18 +1,20 @@
 import { Router } from 'express';
-import { getServices } from '../services/serviceFactory.js';
 import { getDirectionVector } from '../constants/directions.js';
 import { coordinateToString } from '@stellarburn/shared';
+import { getMongo } from '../services/databaseService.js';
+import { performSystemScan } from '../services/scanningService.js';
+import { movePlayer, jumpPlayer } from '../services/movementService.js';
+import { plotCourse, getNextStep, checkCollision } from '../services/navigationService.js';
 
 export function createNavigationRoutes() {
   const router = Router();
-  const getServicesLazy = () => getServices();
 
   // Plot course endpoint
   router.get('/plot/:playerId/:from/:to', async (req, res) => {
     try {
       const { from, to } = req.params;
-      const { navigationService } = getServicesLazy();
-      const path = await navigationService.plotCourse(from, to);
+      const db = getMongo('stellarburn');
+      const path = await plotCourse(db, from, to);
       
       res.json({
         success: true,
@@ -44,8 +46,7 @@ export function createNavigationRoutes() {
         });
       }
 
-      const { navigationService, movementService, scanningService } = getServicesLazy();
-      const { step, remainingPath } = navigationService.getNextStep(path);
+      const { step, remainingPath } = getNextStep(path);
       
       if (!step) {
         return res.json({
@@ -70,11 +71,13 @@ export function createNavigationRoutes() {
 
       // Execute the movement first
       let result;
+      const db = getMongo('stellarburn');
       if (step.type === 'move') {
-        result = await movementService.movePlayer(playerId, step.direction, directionVector);
+        result = await movePlayer(db, playerId, step.direction, directionVector);
 
         // Check for collision AFTER moving (for regular movement within system)
-        const collision = await navigationService.checkCollision(playerId, result.newCoordinates);
+        const db = getMongo('stellarburn');
+        const collision = await checkCollision(db, playerId, result.newCoordinates);
 
         if (collision.hasCollision) {
           return res.json({
@@ -89,12 +92,11 @@ export function createNavigationRoutes() {
       } else if (step.type === 'jump') {
         // For jumps, only check collision if jumping directly into a celestial body's zone
         // Jumps land at system edges, so collision is less likely
-        const jumpResult = await movementService.jumpPlayer(playerId, step.direction, directionVector);
-        const systemScan = await scanningService.performSystemScan(playerId);
-        result = { ...jumpResult, systemScan };
+        const jumpResult = await jumpPlayer(db, playerId, step.direction, directionVector);
+        result = jumpResult; // jumpResult already includes systemScan
 
         // Check collision after jump landing
-        const collision = await navigationService.checkCollision(playerId, jumpResult.newCoordinates);
+        const collision = await checkCollision(db, playerId, jumpResult.newCoordinates);
 
         if (collision.hasCollision) {
           return res.json({
@@ -148,8 +150,8 @@ export function createNavigationRoutes() {
         });
       }
 
-      const { navigationService } = getServicesLazy();
-      const collision = await navigationService.checkCollision(playerId, coordinates);
+      const db = getMongo('stellarburn');
+      const collision = await checkCollision(db, playerId, coordinates);
       
       res.json({
         success: true,

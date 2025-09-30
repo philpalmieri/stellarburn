@@ -1,15 +1,8 @@
 import { Coordinates3D, coordinateToString, Probe, ProbeConfig } from '@stellarburn/shared';
-import { ScanningService } from './scanningService.js';
-import { ExplorationService } from './explorationService.js';
+import { trackPlayerExploration } from './explorationService.js';
 
-export class ProbeService {
-  constructor(
-    private db: any,
-    private scanningService: ScanningService,
-    private explorationService: ExplorationService
-  ) {}
-
-  private isAtSystemEdge(coords: Coordinates3D): boolean {
+// Helper function to check if player is at system edge
+const isAtSystemEdge = (coords: Coordinates3D): boolean => {
     const systemX = Math.floor(coords.x);
     const systemY = Math.floor(coords.y);
     const systemZ = Math.floor(coords.z);
@@ -19,9 +12,10 @@ export class ProbeService {
 
     // Player is at edge if any coordinate is at 0.0 or 0.4
     return zoneX === 0.0 || zoneX === 0.4 || zoneY === 0.0 || zoneY === 0.4 || zoneZ === 0.0 || zoneZ === 0.4;
-  }
+};
 
-  private getEdgeCoordinates(coords: Coordinates3D): Coordinates3D[] {
+// Helper function to get edge coordinates
+const getEdgeCoordinates = (coords: Coordinates3D): Coordinates3D[] => {
     const systemX = Math.floor(coords.x);
     const systemY = Math.floor(coords.y);
     const systemZ = Math.floor(coords.z);
@@ -54,10 +48,11 @@ export class ProbeService {
     }
 
     return edges;
-  }
+};
 
-  async launchProbe(playerId: string, direction: string) {
-    const player = await this.db.collection('players').findOne({ id: playerId });
+// Launch probe function using functional approach
+export const launchProbe = async (db: any, playerId: string, direction: string) => {
+    const player = await db.collection('players').findOne({ id: playerId });
 
     if (!player) {
       throw new Error('Player not found');
@@ -111,10 +106,10 @@ export class ProbeService {
     };
 
     // Store probe in database
-    await this.db.collection('probes').insertOne(probe);
+    await db.collection('probes').insertOne(probe);
 
     // Reduce probe count
-    await this.db.collection('players').updateOne(
+    await db.collection('players').updateOne(
       { id: playerId },
       {
         $inc: { 'ship.probes': -1 },
@@ -124,7 +119,7 @@ export class ProbeService {
 
     // Instead of executing all movement immediately, just return the probe
     // Movement will be handled by the probe movement scheduler
-    const updatedPlayer = await this.db.collection('players').findOne({ id: playerId });
+    const updatedPlayer = await db.collection('players').findOne({ id: playerId });
 
     return {
       success: true,
@@ -133,9 +128,10 @@ export class ProbeService {
       probe,
       discoveredSystems: [] // No immediate scanning
     };
-  }
+};
 
-  private async executeProbeMovement(probe: Probe) {
+// Private helper function for executing probe movement
+const executeProbeMovement = async (db: any, probe: Probe) => {
     const discoveredSystems = [];
     const currentCoords = probe.coordinates;
 
@@ -149,7 +145,7 @@ export class ProbeService {
     // Move through systems until fuel runs out
     for (let i = 0; i < probe.fuel; i++) {
       // Update probe position in database
-      await this.db.collection('probes').updateOne(
+      await db.collection('probes').updateOne(
         { id: probe.id },
         {
           $set: {
@@ -162,7 +158,7 @@ export class ProbeService {
 
       // Add probe to current system's dynamic objects
       const systemCoordString = coordinateToString(probeCoords);
-      await this.db.collection('sectors').updateOne(
+      await db.collection('sectors').updateOne(
         { coordinates: systemCoordString },
         {
           $addToSet: { 'dynamicObjects.probes': probe.id },
@@ -172,13 +168,13 @@ export class ProbeService {
       );
 
       // Track exploration for this system
-      await this.explorationService.trackPlayerExploration(probe.playerId, probeCoords);
+      await trackPlayerExploration(db, probe.playerId, probeCoords);
 
       // Perform system scan
-      const systemSector = await this.db.collection('sectors').findOne({ coordinates: systemCoordString });
+      const systemSector = await db.collection('sectors').findOne({ coordinates: systemCoordString });
 
       // Get other players in this system (exclude docked players)
-      const systemPlayers = await this.db.collection('players').find({
+      const systemPlayers = await db.collection('players').find({
         'coordinates.x': { $gte: probeCoords.x, $lt: probeCoords.x + 1 },
         'coordinates.y': { $gte: probeCoords.y, $lt: probeCoords.y + 1 },
         'coordinates.z': { $gte: probeCoords.z, $lt: probeCoords.z + 1 },
@@ -208,23 +204,24 @@ export class ProbeService {
     }
 
     // Probe fuel exhausted, mark as destroyed and cleanup
-    await this.destroyProbe(probe.id);
+    await destroyProbe(db, probe.id);
 
     return discoveredSystems;
-  }
+};
 
-  async destroyProbe(probeId: string) {
-    const probe = await this.db.collection('probes').findOne({ id: probeId });
+// Destroy probe function using functional approach
+export const destroyProbe = async (db: any, probeId: string) => {
+    const probe = await db.collection('probes').findOne({ id: probeId });
     if (!probe) return;
 
     // Remove probe from all sectors
-    await this.db.collection('sectors').updateMany(
+    await db.collection('sectors').updateMany(
       { 'dynamicObjects.probes': probeId },
       { $pull: { 'dynamicObjects.probes': probeId } }
     );
 
     // Mark probe as destroyed
-    await this.db.collection('probes').updateOne(
+    await db.collection('probes').updateOne(
       { id: probeId },
       {
         $set: {
@@ -233,25 +230,29 @@ export class ProbeService {
         }
       }
     );
-  }
+};
 
-  async getActiveProbes(playerId: string) {
-    return await this.db.collection('probes').find({
+// Get active probes function using functional approach
+export const getActiveProbes = async (db: any, playerId: string) => {
+    return await db.collection('probes').find({
       playerId,
       status: 'active'
     }).toArray();
-  }
+};
 
-  async getAllProbes(playerId: string) {
-    return await this.db.collection('probes').find({ playerId }).toArray();
-  }
+// Get all probes function using functional approach
+export const getAllProbes = async (db: any, playerId: string) => {
+    return await db.collection('probes').find({ playerId }).toArray();
+};
 
-  async getAllActiveProbes() {
-    return await this.db.collection('probes').find({ status: 'active' }).toArray();
-  }
+// Get all active probes function using functional approach
+export const getAllActiveProbes = async (db: any) => {
+    return await db.collection('probes').find({ status: 'active' }).toArray();
+};
 
-  async moveProbeOneStep(probeId: string) {
-    const probe = await this.db.collection('probes').findOne({ id: probeId });
+// Move probe one step function using functional approach
+export const moveProbeOneStep = async (db: any, probeId: string) => {
+    const probe = await db.collection('probes').findOne({ id: probeId });
     if (!probe || probe.status !== 'active' || probe.fuel <= 0) {
       return null;
     }
@@ -265,7 +266,7 @@ export class ProbeService {
 
     // Update probe position and reduce fuel
     const newFuel = probe.fuel - 1;
-    await this.db.collection('probes').updateOne(
+    await db.collection('probes').updateOne(
       { id: probeId },
       {
         $set: {
@@ -278,7 +279,7 @@ export class ProbeService {
 
     // Add probe to current system's dynamic objects
     const systemCoordString = coordinateToString(nextCoords);
-    await this.db.collection('sectors').updateOne(
+    await db.collection('sectors').updateOne(
       { coordinates: systemCoordString },
       {
         $addToSet: { 'dynamicObjects.probes': probeId },
@@ -288,13 +289,13 @@ export class ProbeService {
     );
 
     // Track exploration for this system
-    await this.explorationService.trackPlayerExploration(probe.playerId, nextCoords);
+    await trackPlayerExploration(db, probe.playerId, nextCoords);
 
     // Perform system scan
-    const systemSector = await this.db.collection('sectors').findOne({ coordinates: systemCoordString });
+    const systemSector = await db.collection('sectors').findOne({ coordinates: systemCoordString });
 
     // Get other players in this system (exclude docked players)
-    const systemPlayers = await this.db.collection('players').find({
+    const systemPlayers = await db.collection('players').find({
       'coordinates.x': { $gte: nextCoords.x, $lt: nextCoords.x + 1 },
       'coordinates.y': { $gte: nextCoords.y, $lt: nextCoords.y + 1 },
       'coordinates.z': { $gte: nextCoords.z, $lt: nextCoords.z + 1 },
@@ -312,7 +313,7 @@ export class ProbeService {
 
     // If fuel is exhausted, destroy the probe
     if (newFuel <= 0) {
-      await this.destroyProbe(probeId);
+      await destroyProbe(db, probeId);
     }
 
     return {
@@ -320,19 +321,19 @@ export class ProbeService {
       systemScan,
       fuelExhausted: newFuel <= 0
     };
-  }
+};
 
-  async moveAllActiveProbes() {
-    const activeProbes = await this.getAllActiveProbes();
-    const results = [];
+// Move all active probes function using functional approach
+export const moveAllActiveProbes = async (db: any) => {
+  const activeProbes = await getAllActiveProbes(db);
+  const results = [];
 
-    for (const probe of activeProbes) {
-      const result = await this.moveProbeOneStep(probe.id);
-      if (result) {
-        results.push(result);
-      }
+  for (const probe of activeProbes) {
+    const result = await moveProbeOneStep(db, probe.id);
+    if (result) {
+      results.push(result);
     }
-
-    return results;
   }
-}
+
+  return results;
+};

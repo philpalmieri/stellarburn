@@ -1,20 +1,16 @@
 import { MongoClient } from 'mongodb';
 import { Coordinates3D, coordinateToString } from '@stellarburn/shared';
-import { ScanningService } from './scanningService.js';
+import { performLocalScan, performSystemScan } from './scanningService.js';
 
-export class MovementService {
-  constructor(
-    private db: any,
-    private scanningService: ScanningService
-  ) {}
+// Helper function for getting system objects
+const getSystemObjects = (db: any) => async (systemCoords: Coordinates3D) => {
+  const systemCoordString = coordinateToString(systemCoords);
+  const systemSector = await db.collection('sectors').findOne({ coordinates: systemCoordString });
+  return systemSector?.staticObjects || [];
+};
 
-  private async getSystemObjects(systemCoords: Coordinates3D) {
-    const systemCoordString = coordinateToString(systemCoords);
-    const systemSector = await this.db.collection('sectors').findOne({ coordinates: systemCoordString });
-    return systemSector?.staticObjects || [];
-  }
-
-  private checkCollision(targetCoords: Coordinates3D, objects: any[]): { collision: boolean; object?: any } {
+// Functional collision checker using currying
+const checkCollision = (targetCoords: Coordinates3D) => (objects: any[]): { collision: boolean; object?: any } => {
     for (const obj of objects) {
       // Only check collision for stars (any size) and large planets (size 4+)
       // Size 1 objects (small planets, asteroids, stations) don't prevent movement
@@ -45,9 +41,10 @@ export class MovementService {
       }
     }
     return { collision: false };
-  }
+};
 
-  private isAtSystemEdge(coords: Coordinates3D): boolean {
+// Helper function to check if player is at system edge
+const isAtSystemEdge = (coords: Coordinates3D): boolean => {
     const systemX = Math.floor(coords.x);
     const systemY = Math.floor(coords.y);
     const systemZ = Math.floor(coords.z);
@@ -57,9 +54,10 @@ export class MovementService {
 
     // Player is at edge if any coordinate is at 0.0 or 0.4
     return zoneX === 0.0 || zoneX === 0.4 || zoneY === 0.0 || zoneY === 0.4 || zoneZ === 0.0 || zoneZ === 0.4;
-  }
+};
 
-  private getEdgeCoordinates(coords: Coordinates3D): Coordinates3D[] {
+// Helper function to get edge coordinates
+const getEdgeCoordinates = (coords: Coordinates3D): Coordinates3D[] => {
     const systemX = Math.floor(coords.x);
     const systemY = Math.floor(coords.y);
     const systemZ = Math.floor(coords.z);
@@ -92,10 +90,11 @@ export class MovementService {
     }
 
     return edges;
-  }
+};
 
-  async movePlayer(playerId: string, direction: string, directionVector: Coordinates3D) {
-    const player = await this.db.collection('players').findOne({ id: playerId });
+// Move player function using functional approach
+export const movePlayer = async (db: any, playerId: string, direction: string, directionVector: Coordinates3D) => {
+    const player = await db.collection('players').findOne({ id: playerId });
 
     if (!player) {
       throw new Error('Player not found');
@@ -125,16 +124,17 @@ export class MovementService {
 
     // Check for collisions with stars and large planets
     const systemCoords = { x: systemX, y: systemY, z: systemZ };
-    const systemObjects = await this.getSystemObjects(systemCoords);
-    const collisionCheck = this.checkCollision(newCoordinates, systemObjects);
+    const getSystemObjectsForDb = getSystemObjects(db);
+    const systemObjects = await getSystemObjectsForDb(systemCoords);
+    const collisionCheck = checkCollision(newCoordinates)(systemObjects);
 
     if (collisionCheck.collision) {
       const obj = collisionCheck.object;
       const objType = obj.type === 'star' ? 'star' : 'large planet';
       throw new Error(`You cannot crash your ship on purpose! Cannot move into ${objType} ${obj.name}. You can orbit around it but not enter it.`);
     }
-    
-    await this.db.collection('players').updateOne(
+
+    await db.collection('players').updateOne(
       { id: playerId },
       {
         $set: {
@@ -146,7 +146,7 @@ export class MovementService {
     );
 
     // Perform local scan at new location
-    const localScan = await this.scanningService.performLocalScan(playerId);
+    const localScan = await performLocalScan(db, playerId);
 
     return {
       success: true,
@@ -155,24 +155,25 @@ export class MovementService {
       message: `Moved ${direction} to ${coordinateToString(newCoordinates)}`,
       localScan
     };
-  }
+};
 
-  async jumpPlayer(playerId: string, direction: string, directionVector: Coordinates3D) {
-    const player = await this.db.collection('players').findOne({ id: playerId });
-    
+// Jump player function using functional approach
+export const jumpPlayer = async (db: any, playerId: string, direction: string, directionVector: Coordinates3D) => {
+    const player = await db.collection('players').findOne({ id: playerId });
+
     if (!player) {
       throw new Error('Player not found');
     }
-    
+
     if (player.ship.fuel < 1) {
       throw new Error('Not enough fuel to jump');
     }
-    
+
     const currentCoords = player.coordinates;
 
     // Validate that player is at system edge before jumping
-    if (!this.isAtSystemEdge(currentCoords)) {
-      const edgeCoords = this.getEdgeCoordinates(currentCoords);
+    if (!isAtSystemEdge(currentCoords)) {
+      const edgeCoords = getEdgeCoordinates(currentCoords);
       const nearestEdges = edgeCoords.slice(0, 6); // Show first 6 edge options
       const edgeList = nearestEdges.map(coord => coordinateToString(coord)).join(', ');
       throw new Error(`Cannot jump from the center of a zone. Move to a system edge first. Nearest edges: ${edgeList}`);
@@ -199,8 +200,8 @@ export class MovementService {
       y: directionVector.y !== 0 ? nextSystemCoords.y + 0.2 : currentCoords.y,
       z: directionVector.z !== 0 ? nextSystemCoords.z + 0.2 : currentCoords.z
     };
-    
-    await this.db.collection('players').updateOne(
+
+    await db.collection('players').updateOne(
       { id: playerId },
       {
         $set: {
@@ -212,7 +213,7 @@ export class MovementService {
     );
 
     // Perform system scan at new location
-    const systemScan = await this.scanningService.performSystemScan(playerId);
+    const systemScan = await performSystemScan(db, playerId);
 
     return {
       success: true,
@@ -222,5 +223,4 @@ export class MovementService {
       message: `Jumped ${direction} to system ${coordinateToString(nextSystemCoords)}`,
       systemScan
     };
-  }
-}
+};

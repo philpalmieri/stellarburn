@@ -4,6 +4,11 @@ import { getServices } from '../services/serviceFactory.js';
 import { getItemById } from '../data/tradeItems.js';
 import { DIRECTIONS, getDirectionVector } from '../constants/directions.js';
 import { coordinateToString } from '@stellarburn/shared';
+import { performLocalScan, performSystemScan } from '../services/scanningService.js';
+import { getKnownSystems } from '../services/explorationService.js';
+import { findNearestStation, findNearestPlanet, findNearestStar, findNearestPlayer, findNearestProbe } from '../services/nearestService.js';
+import { movePlayer, jumpPlayer } from '../services/movementService.js';
+import { launchProbe, getActiveProbes, getAllProbes } from '../services/probeService.js';
 
 // Functional helper for distance calculations and sorting
 const calculateDistance3D = (from: any) => (to: any): number => {
@@ -146,8 +151,8 @@ export function createPlayerRoutes() {
         });
       }
       
-      const { movementService } = getServicesLazy();
-      const result = await movementService.movePlayer(playerId, direction, directionVector);
+      const db = getMongo('stellarburn');
+      const result = await movePlayer(db, playerId, direction, directionVector);
       res.json(result);
     } catch (error) {
       console.error('Movement error:', error);
@@ -168,14 +173,10 @@ export function createPlayerRoutes() {
         });
       }
       
-      const { movementService, scanningService } = getServicesLazy();
-      const jumpResult = await movementService.jumpPlayer(playerId, direction, directionVector);
-      const systemScan = await scanningService.performSystemScan(playerId);
-      
-      res.json({
-        ...jumpResult,
-        systemScan
-      });
+      const db = getMongo('stellarburn');
+      const jumpResult = await jumpPlayer(db, playerId, direction, directionVector);
+
+      res.json(jumpResult);
     } catch (error) {
       console.error('Jump error:', error);
       res.status(500).json({ error: error instanceof Error ? error.message : 'Failed to jump' });
@@ -186,8 +187,8 @@ export function createPlayerRoutes() {
   router.get('/:playerId/scan', async (req, res) => {
     try {
       const { playerId } = req.params;
-      const { scanningService } = getServicesLazy();
-      const result = await scanningService.performLocalScan(playerId);
+      const db = getMongo('stellarburn');
+      const result = await performLocalScan(db, playerId);
       res.json(result);
     } catch (error) {
       console.error('Scan error:', error);
@@ -198,11 +199,10 @@ export function createPlayerRoutes() {
   router.get('/:playerId/system-scan', async (req, res) => {
     try {
       const { playerId } = req.params;
-      const { scanningService } = getServicesLazy();
-      const result = await scanningService.performSystemScan(playerId);
+      const db = getMongo('stellarburn');
+      const result = await performSystemScan(db, playerId);
 
       // Get player coordinates for distance calculation
-      const db = getMongo('stellarburn');
       const player = await db.collection('players').findOne({ id: playerId });
 
       if (player && result.objects) {
@@ -243,8 +243,8 @@ export function createPlayerRoutes() {
   router.post('/:playerId/probe/:direction', async (req, res) => {
     try {
       const { playerId, direction } = req.params;
-      const { probeService } = getServicesLazy();
-      const result = await probeService.launchProbe(playerId, direction);
+      const db = getMongo('stellarburn');
+      const result = await launchProbe(db, playerId, direction);
       res.json(result);
     } catch (error) {
       console.error('Probe launch error:', error);
@@ -256,8 +256,8 @@ export function createPlayerRoutes() {
   router.get('/:playerId/probes', async (req, res) => {
     try {
       const { playerId } = req.params;
-      const { probeService } = getServicesLazy();
-      const probes = await probeService.getActiveProbes(playerId);
+      const db = getMongo('stellarburn');
+      const probes = await getActiveProbes(db, playerId);
       res.json(probes);
     } catch (error) {
       console.error('Get probes error:', error);
@@ -269,8 +269,8 @@ export function createPlayerRoutes() {
   router.get('/:playerId/probes/all', async (req, res) => {
     try {
       const { playerId } = req.params;
-      const { probeService } = getServicesLazy();
-      const probes = await probeService.getAllProbes(playerId);
+      const db = getMongo('stellarburn');
+      const probes = await getAllProbes(db, playerId);
       res.json(probes);
     } catch (error) {
       console.error('Get all probes error:', error);
@@ -281,8 +281,8 @@ export function createPlayerRoutes() {
   router.get('/:playerId/known-systems', async (req, res) => {
     try {
       const { playerId } = req.params;
-      const { explorationService } = getServicesLazy();
-      const result = await explorationService.getKnownSystems(playerId);
+      const db = getMongo('stellarburn');
+      const result = await getKnownSystems(db, playerId);
       res.json(result);
     } catch (error) {
       console.error('Known systems error:', error);
@@ -294,25 +294,25 @@ export function createPlayerRoutes() {
   router.get('/:playerId/nearest/:entityType', async (req, res) => {
     try {
       const { playerId, entityType } = req.params;
-      const { nearestService } = getServicesLazy();
+      const db = getMongo('stellarburn');
 
       let result;
       switch (entityType.toLowerCase()) {
         case 'station':
-          result = await nearestService.findNearestStation(playerId);
+          result = await findNearestStation(db, playerId);
           break;
         case 'planet':
-          result = await nearestService.findNearestPlanet(playerId);
+          result = await findNearestPlanet(db, playerId);
           break;
         case 'star':
-          result = await nearestService.findNearestStar(playerId);
+          result = await findNearestStar(db, playerId);
           break;
         case 'player':
         case 'ship':
-          result = await nearestService.findNearestPlayer(playerId);
+          result = await findNearestPlayer(db, playerId);
           break;
         case 'probe':
-          result = await nearestService.findNearestProbe(playerId);
+          result = await findNearestProbe(db, playerId);
           break;
         default:
           return res.status(400).json({
@@ -343,8 +343,8 @@ export function createPlayerRoutes() {
   router.get('/:playerId/database', async (req, res) => {
     try {
       const { playerId } = req.params;
-      const { explorationService } = getServicesLazy();
-      const result = await explorationService.getKnownSystems(playerId);
+      const db = getMongo('stellarburn');
+      const result = await getKnownSystems(db, playerId);
 
       // Filter to only show systems with objects
       const systemsWithObjects = result.knownSystems.filter((system: any) =>
@@ -385,8 +385,8 @@ export function createPlayerRoutes() {
   router.get('/:playerId/database/all', async (req, res) => {
     try {
       const { playerId } = req.params;
-      const { explorationService } = getServicesLazy();
-      const result = await explorationService.getKnownSystems(playerId);
+      const db = getMongo('stellarburn');
+      const result = await getKnownSystems(db, playerId);
 
       // Add distances and sort all systems by closest first
       const systemsWithDistances = result.knownSystems
@@ -422,15 +422,14 @@ export function createPlayerRoutes() {
   router.get('/:playerId/database/system/:coordinates', async (req, res) => {
     try {
       const { playerId, coordinates } = req.params;
-      const { explorationService } = getServicesLazy();
-      const result = await explorationService.getKnownSystems(playerId);
+      const db = getMongo('stellarburn');
+      const result = await getKnownSystems(db, playerId);
 
       // Find the specific system in player's known systems
       const system = result.knownSystems.find((sys: any) => sys.coordinates === coordinates);
 
       if (!system) {
         // Check if the system exists in the universe at all (but don't reveal details!)
-        const db = getMongo('stellarburn');
         const universalSystem = await db.collection('sectors').findOne({ coordinates });
 
         if (universalSystem) {
