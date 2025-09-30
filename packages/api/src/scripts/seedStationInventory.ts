@@ -16,7 +16,7 @@ async function seedStationInventory() {
     const db = client.db('stellarburn');
 
     // Check if there are any stations
-    const sectors = await db.collection('sectors').find({}).toArray();
+    const sectors = await db.collection('systems').find({}).toArray();
     let totalStations = 0;
 
     for (const sector of sectors) {

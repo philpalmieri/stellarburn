@@ -46,13 +46,13 @@ const formatCoordinate = (value: number): number => {
 
 // Check for celestial body collisions
 const checkCelestialCollision = async (db: any, systemCoordString: string, targetCoord: Coordinates3D): Promise<CollisionInfo> => {
-  const systemSector = await db.collection('sectors').findOne({ coordinates: systemCoordString });
+  const system = await db.collection('systems').findOne({ coordinates: systemCoordString });
 
-  if (!systemSector?.staticObjects) {
+  if (!system?.staticObjects) {
     return { hasCollision: false };
   }
 
-  for (const obj of systemSector.staticObjects) {
+  for (const obj of system.staticObjects) {
     // Only check collision for stars and large planets
     if (obj.type === 'star' || (obj.type === 'planet' && obj.size >= 4)) {
       const distance = calculate3DDistance(targetCoord, obj.coordinates);
@@ -86,7 +86,7 @@ const checkCelestialCollision = async (db: any, systemCoordString: string, targe
 
 // Check for player collisions (disabled in this game)
 const checkPlayerCollision = async (db: any, playerId: string, targetCoord: Coordinates3D): Promise<CollisionInfo> => {
-  // Player collisions are disabled to allow shared occupation of zones
+  // Player collisions are disabled to allow shared occupation of sectors
   return { hasCollision: false };
 };
 

@@ -76,7 +76,6 @@ export function createNavigationRoutes() {
         result = await movePlayer(db, playerId, step.direction, directionVector);
 
         // Check for collision AFTER moving (for regular movement within system)
-        const db = getMongo('stellarburn');
         const collision = await checkCollision(db, playerId, result.newCoordinates);
 
         if (collision.hasCollision) {
@@ -90,7 +89,7 @@ export function createNavigationRoutes() {
           });
         }
       } else if (step.type === 'jump') {
-        // For jumps, only check collision if jumping directly into a celestial body's zone
+        // For jumps, only check collision if jumping directly into a celestial body's sector
         // Jumps land at system edges, so collision is less likely
         const jumpResult = await jumpPlayer(db, playerId, step.direction, directionVector);
         result = jumpResult; // jumpResult already includes systemScan

@@ -27,14 +27,16 @@ export interface CelestialBody {
   id: string;
   type: 'star' | 'planet' | 'asteroid' | 'station';
   coordinates: Coordinates3D;
-  size: number; // 0-1, percentage of zone occupied
+  size: number; // 0-1, percentage of sector occupied
   name: string;
   resources?: ResourceDeposit[];
   stationClass?: 'A' | 'B' | 'C' | 'D' | 'E'; // For stations only
   stationType?: 'trade' | 'military' | 'shipyard' | 'mining' | 'research'; // Future use
   inventory?: StationInventory[]; // For stations only
   credits?: number; // For stations only
-  isHavenStation?: boolean; // Special marker for the center safe zone station
+  isHavenStation?: boolean; // Special marker for the center safe sector station
+  asteroidType?: AsteroidType; // For asteroids only
+  miningProgress?: MiningProgress; // For asteroids only
 }
 
 export interface ResourceDeposit {
@@ -54,8 +56,8 @@ export interface StarSystem {
   stations: CelestialBody[];
 }
 
-// Sector document (what we store in MongoDB)
-export interface SectorDocument {
+// System document (what we store in MongoDB)
+export interface SystemDocument {
   _id?: string;
   coordinates: string; // "x.x,y.y,z.z"
   coord: Coordinates3D; // For indexed queries
@@ -115,12 +117,12 @@ export interface JumpResult {
 }
 
 export interface ScanResult {
-  currentZone: {
+  currentSector: {
     coordinates: Coordinates3D;
     objects: CelestialBody[];
     otherPlayers: string[];
   };
-  adjacentZones: {
+  adjacentSectors: {
     [direction: string]: {
       coordinates: Coordinates3D;
       objects: CelestialBody[];
@@ -218,4 +220,50 @@ export interface CargoItem {
   itemId: string;
   quantity: number;
   purchasePrice: number; // What player paid
+}
+
+// Mining system types
+export interface AsteroidType {
+  name: string;
+  primaryResource: {
+    itemId: string; // ID from trade items
+    density: 'high' | 'medium' | 'low'; // affects extraction amounts
+    probability: number; // 0-1, chance of getting this resource
+  };
+  secondaryResources: Array<{
+    itemId: string;
+    density: 'high' | 'medium' | 'low';
+    probability: number;
+  }>;
+  miningDifficulty: number; // 1-5, affects mining time and success rate
+  depletionRate: number; // 0-1, how much resources are depleted per mining operation
+}
+
+export interface MiningProgress {
+  totalMined: number; // Total amount mined from this asteroid
+  lastMined: Date; // Last time this asteroid was mined
+  currentDepletion: number; // 0-1, how depleted the asteroid is
+  activeMiningOperations: string[]; // Player IDs currently mining
+}
+
+export interface MiningResult {
+  success: boolean;
+  message: string;
+  extractedItems: Array<{
+    itemId: string;
+    quantity: number;
+    value: number;
+  }>;
+  miningTime: number; // Time in seconds for the operation
+  asteroidDepletion: number; // New depletion level
+  cargoSpaceUsed: number;
+  cargoSpaceRemaining: number;
+}
+
+export interface MiningOperationState {
+  playerId: string;
+  asteroidId: string;
+  startTime: Date;
+  expectedEndTime: Date;
+  miningDuration: number; // seconds
 }

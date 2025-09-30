@@ -7,7 +7,7 @@ const isInDockingRange = (playerCoords: Coordinates3D) => (stationCoords: Coordi
   const dy = Math.abs(playerCoords.y - stationCoords.y);
   const dz = Math.abs(playerCoords.z - stationCoords.z);
   const distance = Math.sqrt(dx * dx + dy * dy + dz * dz);
-  return distance <= 0.05; // Must be within same zone
+  return distance <= 0.05; // Must be within same sector
 };
 
 const canAffordItem = (playerCredits: number) => (itemPrice: number) => (quantity: number): boolean =>
@@ -21,7 +21,7 @@ const calculateDistance = calculate3DDistance;
 
 // Find station by ID across all sectors
 export const findStationById = async (db: any, stationId: string): Promise<CelestialBody | null> => {
-  const sectors = await db.collection('sectors').find({}).toArray();
+  const sectors = await db.collection('systems').find({}).toArray();
 
   for (const sector of sectors) {
     if (!sector.staticObjects) continue;
@@ -44,7 +44,7 @@ export const findNearestStationInRange = async (db: any, playerCoords: Coordinat
   const systemZ = Math.floor(playerCoords.z);
   const systemCoords = `${systemX},${systemY},${systemZ}`;
 
-  const sector = await db.collection('sectors').findOne({ coordinates: systemCoords });
+  const sector = await db.collection('systems').findOne({ coordinates: systemCoords });
   if (!sector || !sector.staticObjects) return null;
 
   const checkInRange = isInDockingRange(playerCoords);
@@ -103,7 +103,7 @@ export const dockPlayer = async (db: any, playerId: string) => {
   // Find nearest station in range
   const station = await findNearestStationInRange(db, player.coordinates);
   if (!station) {
-    throw new Error('No station within docking range (must be in same zone)');
+    throw new Error('No station within docking range (must be in same sector)');
   }
 
   // Update player to be docked
@@ -184,7 +184,7 @@ export const getStationNearPlayer = async (db: any, playerId: string) => {
 
 // Update station inventory helper
 const updateStationInventory = async (db: any, stationId: string, itemId: string, quantityChange: number, creditsChange: number) => {
-  const sectors = await db.collection('sectors').find({}).toArray();
+  const sectors = await db.collection('systems').find({}).toArray();
 
   for (const sector of sectors) {
     if (!sector.staticObjects) continue;
@@ -219,7 +219,7 @@ const updateStationInventory = async (db: any, stationId: string, itemId: string
     }
 
     // Save the updated sector
-    await db.collection('sectors').updateOne(
+    await db.collection('systems').updateOne(
       { coordinates: sector.coordinates },
       { $set: { staticObjects: sector.staticObjects } }
     );

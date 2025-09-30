@@ -3,16 +3,16 @@
 import { Command } from 'commander';
 import chalk from 'chalk';
 import { Coordinates3D, getSystemCoords, calculate3DDistance } from '@stellarburn/shared';
-import { createPlayer, getPlayerStatus, movePlayer, scanArea, jumpPlayer, systemScan, plotCourse, autopilot, getKnownSystems, getAllKnownSystems, getSystemDetails, launchProbe, getActiveProbes, findNearest, getNearbyStation, dockAtStation, undockFromStation, getStationInfo, buyFromStation, sellToStation, resetPlayer } from './game.js';
+import { createPlayer, getPlayerStatus, movePlayer, scanArea, jumpPlayer, systemScan, plotCourse, autopilot, getKnownSystems, getAllKnownSystems, getSystemDetails, launchProbe, getActiveProbes, findNearest, getNearbyStation, dockAtStation, undockFromStation, getStationInfo, buyFromStation, sellToStation, resetPlayer, autoMine, startMining, getMiningStatus, cancelMining } from './game.js';
 
 // Reusable display functions for scan results
-function displayCurrentZone(zone: any) {
-  console.log(chalk.yellow(`Current Zone: ${zone.coordinates.x.toFixed(1)},${zone.coordinates.y.toFixed(1)},${zone.coordinates.z.toFixed(1)}`));
+function displayCurrentSector(sector: any) {
+  console.log(chalk.yellow(`Current Sector: ${sector.coordinates.x.toFixed(1)},${sector.coordinates.y.toFixed(1)},${sector.coordinates.z.toFixed(1)}`));
 
-  // Display objects in current zone
-  if (zone.objects.length > 0) {
-    console.log(chalk.white(`Objects in zone:`));
-    zone.objects.forEach((obj: any) => {
+  // Display objects in current sector
+  if (sector.objects.length > 0) {
+    console.log(chalk.white(`Objects in sector:`));
+    sector.objects.forEach((obj: any) => {
       const color = obj.type === 'star' ? chalk.red :
                    obj.type === 'planet' ? chalk.green :
                    obj.type === 'station' ? chalk.cyan : chalk.gray;
@@ -21,58 +21,66 @@ function displayCurrentZone(zone: any) {
       if (obj.type === 'station') {
         const stationClass = obj.stationClass ? ` (Class ${obj.stationClass})` : '';
         const inventoryInfo = obj.inventoryCount > 0 ? ` - ${obj.inventoryCount} items` : ' - no inventory';
-        console.log(`  ${color(obj.type)}: ${obj.name}${stationClass} ${coords}(size: ${obj.size} zones)${inventoryInfo}`);
+        console.log(`  ${color(obj.type)}: ${obj.name}${stationClass} ${coords}(size: ${obj.size} sectors)${inventoryInfo}`);
 
         if (obj.enrichedInventory && obj.enrichedInventory.length > 0) {
           console.log(`    ${chalk.gray('Top items:')} ${obj.enrichedInventory.map((inv: any) =>
             `${inv.itemName} (${inv.quantity}x @${inv.sellPrice}cr)`
           ).join(', ')}`);
         }
+      } else if (obj.type === 'asteroid') {
+        const asteroidInfo = obj.asteroidType ? ` (${obj.asteroidType.name})` : '';
+        const depletionInfo = obj.miningProgress ? ` - ${(obj.miningProgress.currentDepletion * 100).toFixed(1)}% depleted` : '';
+        const primaryResource = obj.asteroidType?.primaryResource ? ` - Primary: ${obj.asteroidType.primaryResource.itemId}` : '';
+        console.log(`  ${color(obj.type)}: ${obj.name}${asteroidInfo} ${coords}(size: ${obj.size} sectors)${depletionInfo}`);
+        if (primaryResource) {
+          console.log(`    ${chalk.gray(primaryResource)}`);
+        }
       } else {
-        console.log(`  ${color(obj.type)}: ${obj.name} ${coords}(size: ${obj.size} zones)`);
+        console.log(`  ${color(obj.type)}: ${obj.name} ${coords}(size: ${obj.size} sectors)`);
       }
     });
   }
 
-  // Display other players in current zone
-  if (zone.otherPlayers && zone.otherPlayers.length > 0) {
-    console.log(chalk.magenta(`Other ships in zone:`));
-    zone.otherPlayers.forEach((player: any) => {
+  // Display other players in current sector
+  if (sector.otherPlayers && sector.otherPlayers.length > 0) {
+    console.log(chalk.magenta(`Other ships in sector:`));
+    sector.otherPlayers.forEach((player: any) => {
       console.log(`  ${chalk.magenta('ship')}: ${player.name} at ${player.coordinates.x.toFixed(1)},${player.coordinates.y.toFixed(1)},${player.coordinates.z.toFixed(1)}`);
     });
   }
 
-  // Display probes in current zone
-  if (zone.probes && zone.probes.length > 0) {
-    console.log(chalk.yellow(`Probes in zone:`));
-    zone.probes.forEach((probe: any) => {
+  // Display probes in current sector
+  if (sector.probes && sector.probes.length > 0) {
+    console.log(chalk.yellow(`Probes in sector:`));
+    sector.probes.forEach((probe: any) => {
       console.log(`  ${chalk.yellow('probe')}: ID ${probe.id} (fuel: ${probe.fuel}) at ${probe.coordinates.x.toFixed(1)},${probe.coordinates.y.toFixed(1)},${probe.coordinates.z.toFixed(1)}`);
     });
   }
 
   // Show empty space only if nothing is present
-  if (zone.objects.length === 0 &&
-      (!zone.otherPlayers || zone.otherPlayers.length === 0) &&
-      (!zone.probes || zone.probes.length === 0)) {
+  if (sector.objects.length === 0 &&
+      (!sector.otherPlayers || sector.otherPlayers.length === 0) &&
+      (!sector.probes || sector.probes.length === 0)) {
     console.log(chalk.gray(`Empty space`));
   }
 }
 
-function displayAdjacentZones(adjacentZones: any) {
-  console.log(chalk.blue(`\nAdjacent Zones:`));
-  Object.entries(adjacentZones).forEach(([direction, zone]: [string, any]) => {
-    const objectCount = zone.objects.length;
-    const playerCount = zone.otherPlayers ? zone.otherPlayers.length : 0;
-    const probeCount = zone.probes ? zone.probes.length : 0;
+function displayAdjacentSectors(adjacentSectors: any) {
+  console.log(chalk.blue(`\nAdjacent Sectors:`));
+  Object.entries(adjacentSectors).forEach(([direction, sector]: [string, any]) => {
+    const objectCount = sector.objects.length;
+    const playerCount = sector.otherPlayers ? sector.otherPlayers.length : 0;
+    const probeCount = sector.probes ? sector.probes.length : 0;
     let status = chalk.gray('empty');
 
     if (objectCount > 0 || playerCount > 0 || probeCount > 0) {
       const statusParts = [];
 
       if (objectCount > 0) {
-        const hasStation = zone.objects.some((obj: any) => obj.type === 'station');
-        const hasStar = zone.objects.some((obj: any) => obj.type === 'star');
-        const hasPlanet = zone.objects.some((obj: any) => obj.type === 'planet');
+        const hasStation = sector.objects.some((obj: any) => obj.type === 'station');
+        const hasStar = sector.objects.some((obj: any) => obj.type === 'star');
+        const hasPlanet = sector.objects.some((obj: any) => obj.type === 'planet');
 
         if (hasStation) statusParts.push(chalk.cyan('station'));
         else if (hasStar) statusParts.push(chalk.red('star system'));
@@ -97,8 +105,8 @@ function displayAdjacentZones(adjacentZones: any) {
 
 function displayLocalScan(scanResult: any) {
   console.log(chalk.blue(`=== Local Scan ===`));
-  displayCurrentZone(scanResult.currentZone);
-  displayAdjacentZones(scanResult.adjacentZones);
+  displayCurrentSector(scanResult.currentSector);
+  displayAdjacentSectors(scanResult.adjacentSectors);
 }
 
 // Distance calculation helpers
@@ -234,7 +242,7 @@ program
               const color = obj.type === 'star' ? chalk.red :
                            obj.type === 'planet' ? chalk.green :
                            obj.type === 'station' ? chalk.cyan : chalk.gray;
-              const distanceInfo = obj.distance ? ` (${obj.distance.toFixed(2)} units away, ${obj.size} zones)` : ` (${obj.size} zones)`;
+              const distanceInfo = obj.distance ? ` (${obj.distance.toFixed(2)} units away, ${obj.size} sectors)` : ` (${obj.size} sectors)`;
               console.log(`  ${color(obj.type)}: ${obj.name} at ${obj.coordinates.x},${obj.coordinates.y},${obj.coordinates.z}${distanceInfo}`);
             });
           } else {
@@ -403,6 +411,14 @@ program
           await resetPlayerCommand(playerId);
           break;
 
+        case 'mine':
+          await autoMineCommand(playerId);
+          break;
+
+        case 'mining':
+          await miningStatusCommand(playerId);
+          break;
+
         default:
           console.log(chalk.red(`Unknown action: ${action}`));
           console.log(chalk.blue(`\nAvailable actions for ${playerId}:`));
@@ -425,6 +441,8 @@ program
           console.log(chalk.cyan(`  market           - View station market (when docked)`));
           console.log(chalk.cyan(`  buy <item> <qty> - Buy items from station`));
           console.log(chalk.cyan(`  sell <item> <qty>- Sell items to station`));
+          console.log(chalk.yellow(`  mine             - Mine nearest asteroid`));
+          console.log(chalk.yellow(`  mining           - Check mining operation status`));
           console.log(chalk.magenta(`  reset            - Reset fuel and probes (admin)`));
           console.log(chalk.blue(`\nTip: Use quotes around coordinates like "1,2,3"`));
       }
@@ -470,7 +488,7 @@ async function jumpMove(playerId: string, direction: string) {
           if (obj.type === 'station') {
             const stationClass = obj.stationClass ? ` (Class ${obj.stationClass})` : '';
             const inventoryInfo = obj.inventoryCount > 0 ? ` - ${obj.inventoryCount} items` : ' - no inventory';
-            console.log(`  ${color(obj.type)}: ${obj.name}${stationClass} at ${obj.coordinates.x},${obj.coordinates.y},${obj.coordinates.z} (${obj.size} zones)${inventoryInfo}`);
+            console.log(`  ${color(obj.type)}: ${obj.name}${stationClass} at ${obj.coordinates.x},${obj.coordinates.y},${obj.coordinates.z} (${obj.size} sectors)${inventoryInfo}`);
 
             if (obj.enrichedInventory && obj.enrichedInventory.length > 0) {
               console.log(`    ${chalk.gray('Top items:')} ${obj.enrichedInventory.map((inv: any) =>
@@ -478,7 +496,7 @@ async function jumpMove(playerId: string, direction: string) {
               ).join(', ')}`);
             }
           } else {
-            console.log(`  ${color(obj.type)}: ${obj.name} at ${obj.coordinates.x},${obj.coordinates.y},${obj.coordinates.z} (${obj.size} zones)`);
+            console.log(`  ${color(obj.type)}: ${obj.name} at ${obj.coordinates.x},${obj.coordinates.y},${obj.coordinates.z} (${obj.size} sectors)`);
           }
         });
       } else {
@@ -1083,6 +1101,77 @@ async function resetPlayerCommand(playerId: string) {
     console.log(chalk.green(`✓ Player resources reset`));
     console.log(chalk.yellow(`Fuel: ${result.fuel}`));
     console.log(chalk.cyan(`Probes: ${result.probes}`));
+  } catch (error: any) {
+    console.log(chalk.red(`✗ ${error.message}`));
+  }
+}
+
+async function autoMineCommand(playerId: string) {
+  try {
+    const result = await autoMine(playerId);
+
+    if (result.success) {
+      console.log(chalk.green(`✓ Started mining ${(result as any).asteroidName || 'nearest asteroid'}`));
+      if ((result as any).distance) {
+        console.log(chalk.gray(`📍 Distance: ${(result as any).distance} units away`));
+      }
+      console.log(chalk.yellow(`⏱️ Mining will complete in ${result.miningTime} seconds`));
+      console.log(chalk.blue(`💡 Use 'mining' command to check status`));
+    } else {
+      console.log(chalk.red(`✗ ${result.message}`));
+    }
+
+  } catch (error: any) {
+    console.log(chalk.red(`✗ ${error.message}`));
+  }
+}
+
+async function mineAsteroidCommand(playerId: string, asteroidId: string) {
+  try {
+    if (!asteroidId) {
+      console.log(chalk.red(`Please provide an asteroid ID to mine.`));
+      console.log(chalk.blue(`💡 Use 'scan' to see asteroids in your current area.`));
+      return;
+    }
+
+    const result = await startMining(playerId, asteroidId);
+
+    if (result.success) {
+      console.log(chalk.green(`✓ ${result.message}`));
+      if (result.miningTime > 0) {
+        console.log(chalk.yellow(`⏱️ Mining will complete in ${result.miningTime} seconds`));
+        console.log(chalk.blue(`💡 Use 'mining' command to check status`));
+      }
+    } else {
+      console.log(chalk.red(`✗ ${result.message}`));
+    }
+
+  } catch (error: any) {
+    console.log(chalk.red(`✗ ${error.message}`));
+  }
+}
+
+async function miningStatusCommand(playerId: string) {
+  try {
+    const status = await getMiningStatus(playerId);
+
+    if (status.mining) {
+      const operation = status.operation;
+      console.log(chalk.yellow(`⛏️ Mining Operation Active`));
+      console.log(`Asteroid: ${chalk.cyan(operation.asteroidId)}`);
+      console.log(`Started: ${new Date(operation.startTime).toLocaleTimeString()}`);
+
+      if (operation.timeRemaining > 0) {
+        console.log(`Time remaining: ${chalk.yellow(operation.timeRemaining)} seconds`);
+      } else {
+        console.log(chalk.green(`✓ Mining operation completed!`));
+        console.log(chalk.blue(`💡 Use 'status' to see extracted resources in your cargo`));
+      }
+    } else {
+      console.log(chalk.gray(`No active mining operations.`));
+      console.log(chalk.blue(`💡 Use 'mine <asteroidId>' to start mining an asteroid`));
+    }
+
   } catch (error: any) {
     console.log(chalk.red(`✗ ${error.message}`));
   }

@@ -1,4 +1,4 @@
-import { TradeItem } from './types.js';
+import { TradeItem, AsteroidType } from './types.js';
 
 // Comprehensive trade items organized by logical categories
 export const TRADE_ITEMS: TradeItem[] = [
@@ -555,4 +555,183 @@ export const getRandomItems = (count: number, excludeContraband: boolean = true)
 
 export const getWeightedRandomItems = (count: number, stationClass: 'A' | 'B' | 'C' | 'D' | 'E'): TradeItem[] => {
   return getWeightedRandomSelection(TRADE_ITEMS, count, stationClass);
+};
+
+// ========================================
+// ASTEROID TYPES FOR MINING
+// ========================================
+export const ASTEROID_TYPES: AsteroidType[] = [
+  {
+    name: 'Iron-Rich Asteroid',
+    primaryResource: {
+      itemId: 'iron_ore',
+      density: 'high',
+      probability: 0.7
+    },
+    secondaryResources: [
+      { itemId: 'copper_ore', density: 'medium', probability: 0.4 },
+      { itemId: 'scrap_electronics', density: 'low', probability: 0.2 }
+    ],
+    miningDifficulty: 1,
+    depletionRate: 0.05
+  },
+  {
+    name: 'Gold-Bearing Asteroid',
+    primaryResource: {
+      itemId: 'gold_ore',
+      density: 'high',
+      probability: 0.6
+    },
+    secondaryResources: [
+      { itemId: 'platinum_ore', density: 'low', probability: 0.3 },
+      { itemId: 'iron_ore', density: 'medium', probability: 0.5 }
+    ],
+    miningDifficulty: 2,
+    depletionRate: 0.08
+  },
+  {
+    name: 'Platinum Asteroid',
+    primaryResource: {
+      itemId: 'platinum_ore',
+      density: 'high',
+      probability: 0.5
+    },
+    secondaryResources: [
+      { itemId: 'gold_ore', density: 'medium', probability: 0.4 },
+      { itemId: 'rare_earth_metals', density: 'low', probability: 0.2 }
+    ],
+    miningDifficulty: 3,
+    depletionRate: 0.1
+  },
+  {
+    name: 'Titanium Asteroid',
+    primaryResource: {
+      itemId: 'titanium_ore',
+      density: 'high',
+      probability: 0.6
+    },
+    secondaryResources: [
+      { itemId: 'iron_ore', density: 'medium', probability: 0.5 },
+      { itemId: 'crystalline_carbon', density: 'low', probability: 0.3 }
+    ],
+    miningDifficulty: 2,
+    depletionRate: 0.07
+  },
+  {
+    name: 'Rare Earth Asteroid',
+    primaryResource: {
+      itemId: 'rare_earth_metals',
+      density: 'high',
+      probability: 0.5
+    },
+    secondaryResources: [
+      { itemId: 'lithium_ore', density: 'medium', probability: 0.4 },
+      { itemId: 'xenonite_crystals', density: 'low', probability: 0.1 }
+    ],
+    miningDifficulty: 4,
+    depletionRate: 0.12
+  },
+  {
+    name: 'Lithium-Rich Asteroid',
+    primaryResource: {
+      itemId: 'lithium_ore',
+      density: 'high',
+      probability: 0.7
+    },
+    secondaryResources: [
+      { itemId: 'copper_ore', density: 'medium', probability: 0.3 },
+      { itemId: 'crystalline_carbon', density: 'medium', probability: 0.2 }
+    ],
+    miningDifficulty: 2,
+    depletionRate: 0.06
+  },
+  {
+    name: 'Crystalline Asteroid',
+    primaryResource: {
+      itemId: 'crystalline_carbon',
+      density: 'high',
+      probability: 0.4
+    },
+    secondaryResources: [
+      { itemId: 'xenonite_crystals', density: 'medium', probability: 0.2 },
+      { itemId: 'rare_earth_metals', density: 'low', probability: 0.3 }
+    ],
+    miningDifficulty: 3,
+    depletionRate: 0.09
+  },
+  {
+    name: 'Uranium-Rich Asteroid',
+    primaryResource: {
+      itemId: 'uranium_ore',
+      density: 'high',
+      probability: 0.3
+    },
+    secondaryResources: [
+      { itemId: 'rare_earth_metals', density: 'medium', probability: 0.4 },
+      { itemId: 'power_cells', density: 'low', probability: 0.2 }
+    ],
+    miningDifficulty: 4,
+    depletionRate: 0.15
+  },
+  {
+    name: 'Xenonite Asteroid',
+    primaryResource: {
+      itemId: 'xenonite_crystals',
+      density: 'high',
+      probability: 0.2
+    },
+    secondaryResources: [
+      { itemId: 'crystalline_carbon', density: 'medium', probability: 0.3 },
+      { itemId: 'neutronium_alloy', density: 'low', probability: 0.05 }
+    ],
+    miningDifficulty: 5,
+    depletionRate: 0.2
+  },
+  {
+    name: 'Neutronium Asteroid',
+    primaryResource: {
+      itemId: 'neutronium_alloy',
+      density: 'medium',
+      probability: 0.1
+    },
+    secondaryResources: [
+      { itemId: 'xenonite_crystals', density: 'medium', probability: 0.2 },
+      { itemId: 'uranium_ore', density: 'low', probability: 0.3 }
+    ],
+    miningDifficulty: 5,
+    depletionRate: 0.25
+  }
+];
+
+// Helper functions for asteroid mining
+export const getRandomAsteroidType = (): AsteroidType => {
+  const weights = [40, 25, 15, 10, 8, 12, 8, 5, 3, 1]; // Weights for each asteroid type (common to legendary)
+  const totalWeight = weights.reduce((sum, weight) => sum + weight, 0);
+  const random = Math.random() * totalWeight;
+
+  let currentWeight = 0;
+  for (let i = 0; i < ASTEROID_TYPES.length; i++) {
+    currentWeight += weights[i];
+    if (random <= currentWeight) {
+      return ASTEROID_TYPES[i];
+    }
+  }
+
+  return ASTEROID_TYPES[0]; // fallback to iron
+};
+
+export const getAsteroidTypeByName = (name: string): AsteroidType | undefined => {
+  return ASTEROID_TYPES.find(type => type.name === name);
+};
+
+// Calculate mining yield based on density
+export const getMiningYield = (density: 'high' | 'medium' | 'low', baseAmount: number = 1): number => {
+  const multipliers = {
+    high: [3, 4, 5], // Can get 3-5x base amount
+    medium: [1, 2, 3], // Can get 1-3x base amount
+    low: [1, 1, 2] // Can get 1-2x base amount
+  };
+
+  const options = multipliers[density];
+  return options[Math.floor(Math.random() * options.length)] * baseAmount;
 };

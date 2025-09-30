@@ -224,7 +224,7 @@ export const generateStationInventory = (stationClass: 'A' | 'B' | 'C' | 'D' | '
 export const seedAllStationInventories = async (db: any): Promise<void> => {
   console.log('🏪 Seeding station inventories...');
 
-  const sectors = await db.collection('sectors').find({}).toArray();
+  const sectors = await db.collection('systems').find({}).toArray();
   let stationCount = 0;
   let totalItems = 0;
 
@@ -258,7 +258,7 @@ export const seedAllStationInventories = async (db: any): Promise<void> => {
     }
 
     // Update the sector with the modified station data
-    await db.collection('sectors').updateOne(
+    await db.collection('systems').updateOne(
       { _id: sector._id },
       { $set: { staticObjects: sector.staticObjects } }
     );
@@ -274,7 +274,7 @@ export const getAllTradeItems = (): TradeItem[] => {
 
 // Update station inventory after trade
 export const updateStationInventory = async (db: any, stationId: string, itemId: string, quantityChange: number, creditsChange: number): Promise<void> => {
-  const sectors = await db.collection('sectors').find({}).toArray();
+  const sectors = await db.collection('systems').find({}).toArray();
 
   for (const sector of sectors) {
     if (!sector.staticObjects) continue;
@@ -299,7 +299,7 @@ export const updateStationInventory = async (db: any, stationId: string, itemId:
     }
 
     // Save changes
-    await db.collection('sectors').updateOne(
+    await db.collection('systems').updateOne(
       { _id: sector._id },
       { $set: { staticObjects: sector.staticObjects } }
     );

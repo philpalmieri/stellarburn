@@ -25,7 +25,7 @@ export const getKnownSystems = async (db: any, playerId: string) => {
 
   const knownSystems = player.knownSystems || [];
 
-  const sectors = await db.collection('sectors').find({
+  const sectors = await db.collection('systems').find({
     coordinates: { $in: knownSystems }
   }).toArray();
 

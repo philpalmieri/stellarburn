@@ -13,13 +13,13 @@ const createDistanceCalculator = (targetCoords: Coordinates3D) =>
 const createRangeFilter = (scanRange: number) =>
   (distance: number) => distance <= scanRange;
 
-const findObjectsNear = (systemSector: any) => (coords: Coordinates3D) => (scanRange: number = 0.05) => {
-  if (!systemSector?.staticObjects) return [];
+const findObjectsNear = (system: any) => (coords: Coordinates3D) => (scanRange: number = 0.05) => {
+  if (!system?.staticObjects) return [];
 
   const calculateDistance = createDistanceCalculator(coords);
   const isInRange = createRangeFilter(scanRange);
 
-  return systemSector.staticObjects.filter((obj: any) =>
+  return system.staticObjects.filter((obj: any) =>
     isInRange(calculateDistance(obj.coordinates))
   );
 };
@@ -95,7 +95,7 @@ export const performSystemScan = async (db: any, playerId: string) => {
 
   // Get system data
   const systemCoordString = coordinateToString(systemCoords);
-  const systemSector = await db.collection('sectors').findOne({ coordinates: systemCoordString });
+  const system = await db.collection('systems').findOne({ coordinates: systemCoordString });
 
   // Get other players in this system (exclude docked players)
   const systemPlayers = await db.collection('players').find({
@@ -116,7 +116,7 @@ export const performSystemScan = async (db: any, playerId: string) => {
 
   return {
     systemCoordinates: systemCoords,
-    objects: systemSector?.staticObjects ? systemSector.staticObjects.map(enrichStationData) : [],
+    objects: system?.staticObjects ? system.staticObjects.map(enrichStationData) : [],
     otherPlayers: (systemPlayers || []).map((p: any) => ({
       name: p.name,
       coordinates: p.coordinates
@@ -146,53 +146,53 @@ export const performLocalScan = async (db: any, playerId: string) => {
 
   // Get system data for object detection
   const systemCoordString = coordinateToString(systemCoords);
-  const systemSector = await db.collection('sectors').findOne({ coordinates: systemCoordString });
+  const system = await db.collection('systems').findOne({ coordinates: systemCoordString });
 
   // Create partially applied functions for this scan session
-  const findObjectsInSystemSector = findObjectsNear(systemSector);
+  const findObjectsInSystemSector = findObjectsNear(system);
   const findPlayersExcludingCurrent = findPlayersNear(db)(playerId);
   const findActiveProbes = findProbesNear(db);
 
-  // Scan current zone - use larger range for objects you're right next to
+  // Scan current sector - use larger range for objects you're right next to
   const currentObjects = findObjectsInSystemSector(currentCoords)(0.1).map(enrichStationData);
   const currentPlayers = await findPlayersExcludingCurrent(currentCoords)(0.05);
   const currentProbes = await findActiveProbes(currentCoords)(0.05);
 
-  // Define adjacent coordinates - only include zones within 5x5x5 system (0.0-0.4 range)
+  // Define adjacent coordinates - only include sectors within 5x5x5 system (0.0-0.4 range)
   const adjacentCoords: any = {};
   const systemX = Math.floor(currentCoords.x);
   const systemY = Math.floor(currentCoords.y);
   const systemZ = Math.floor(currentCoords.z);
-  const zoneX = currentCoords.x - systemX;
-  const zoneY = currentCoords.y - systemY;
-  const zoneZ = currentCoords.z - systemZ;
+  const sectorX = currentCoords.x - systemX;
+  const sectorY = currentCoords.y - systemY;
+  const sectorZ = currentCoords.z - systemZ;
 
   // Only add directions that stay within 5x5x5 bounds
-  if (zoneY + 0.1 <= 0.4) adjacentCoords.north = { x: currentCoords.x, y: currentCoords.y + 0.1, z: currentCoords.z };
-  if (zoneY - 0.1 >= 0.0) adjacentCoords.south = { x: currentCoords.x, y: currentCoords.y - 0.1, z: currentCoords.z };
-  if (zoneX + 0.1 <= 0.4) adjacentCoords.east = { x: currentCoords.x + 0.1, y: currentCoords.y, z: currentCoords.z };
-  if (zoneX - 0.1 >= 0.0) adjacentCoords.west = { x: currentCoords.x - 0.1, y: currentCoords.y, z: currentCoords.z };
-  if (zoneZ + 0.1 <= 0.4) adjacentCoords.up = { x: currentCoords.x, y: currentCoords.y, z: currentCoords.z + 0.1 };
-  if (zoneZ - 0.1 >= 0.0) adjacentCoords.down = { x: currentCoords.x, y: currentCoords.y, z: currentCoords.z - 0.1 };
+  if (sectorY + 0.1 <= 0.4) adjacentCoords.north = { x: currentCoords.x, y: currentCoords.y + 0.1, z: currentCoords.z };
+  if (sectorY - 0.1 >= 0.0) adjacentCoords.south = { x: currentCoords.x, y: currentCoords.y - 0.1, z: currentCoords.z };
+  if (sectorX + 0.1 <= 0.4) adjacentCoords.east = { x: currentCoords.x + 0.1, y: currentCoords.y, z: currentCoords.z };
+  if (sectorX - 0.1 >= 0.0) adjacentCoords.west = { x: currentCoords.x - 0.1, y: currentCoords.y, z: currentCoords.z };
+  if (sectorZ + 0.1 <= 0.4) adjacentCoords.up = { x: currentCoords.x, y: currentCoords.y, z: currentCoords.z + 0.1 };
+  if (sectorZ - 0.1 >= 0.0) adjacentCoords.down = { x: currentCoords.x, y: currentCoords.y, z: currentCoords.z - 0.1 };
 
-  // Scan adjacent zones - use larger range to capture entities in neighboring zones
-  const adjacentZones: any = {};
+  // Scan adjacent sectors - use larger range to capture entities in neighboring sectors
+  const adjacentSectors: any = {};
   for (const [direction, coords] of Object.entries(adjacentCoords)) {
-    adjacentZones[direction] = {
-      coordinates: coords,
-      objects: findObjectsInSystemSector(coords)(0.08).map(enrichStationData),
-      otherPlayers: await findPlayersExcludingCurrent(coords)(0.08), // Larger range to detect entities in adjacent zones
-      probes: await findActiveProbes(coords)(0.08)
+    adjacentSectors[direction] = {
+      coordinates: coords as Coordinates3D,
+      objects: findObjectsInSystemSector(coords as Coordinates3D)(0.08).map(enrichStationData),
+      otherPlayers: await findPlayersExcludingCurrent(coords as Coordinates3D)(0.08), // Larger range to detect entities in adjacent sectors
+      probes: await findActiveProbes(coords as Coordinates3D)(0.08)
     };
   }
 
   return {
-    currentZone: {
+    currentSector: {
       coordinates: currentCoords,
       objects: currentObjects,
       otherPlayers: currentPlayers,
       probes: currentProbes
     },
-    adjacentZones
+    adjacentSectors: adjacentSectors
   };
 };

@@ -2,10 +2,11 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { Canvas } from '@react-three/fiber';
 import { OrbitControls, Stars } from '@react-three/drei';
 import UniverseVisualization from './components/UniverseVisualization';
-import { SectorDocument } from '@stellarburn/shared';
+import { SystemDocument } from '@stellarburn/shared';
 
 interface UniverseStats {
-  totalSectors: number;
+  totalSystems: number;
+  totalPlayers: number;
   message: string;
 }
 
@@ -19,7 +20,7 @@ interface UniverseBounds {
 }
 
 function UniverseView() {
-  const [sectors, setSectors] = useState<SectorDocument[]>([]);
+  const [systems, setSystems] = useState<SystemDocument[]>([]);
   const [stats, setStats] = useState<UniverseStats | null>(null);
   const [bounds, setBounds] = useState<UniverseBounds | null>(null);
   const [loading, setLoading] = useState(true);
@@ -30,19 +31,19 @@ function UniverseView() {
       const statsData = await statsResponse.json();
       setStats(statsData);
 
-      const sectorsResponse = await fetch('/api/universe/sectors');
-      const sectorsData = await sectorsResponse.json();
-      setSectors(sectorsData);
+      const systemsResponse = await fetch('/api/universe/systems');
+      const systemsData = await systemsResponse.json();
+      setSystems(systemsData);
 
-      if (sectorsData.length > 0) {
-        const bounds = sectorsData.reduce((acc: UniverseBounds, sector: SectorDocument) => {
+      if (systemsData.length > 0) {
+        const bounds = systemsData.reduce((acc: UniverseBounds, system: SystemDocument) => {
           return {
-            minX: Math.min(acc.minX, sector.coord.x),
-            maxX: Math.max(acc.maxX, sector.coord.x),
-            minY: Math.min(acc.minY, sector.coord.y),
-            maxY: Math.max(acc.maxY, sector.coord.y),
-            minZ: Math.min(acc.minZ, sector.coord.z),
-            maxZ: Math.max(acc.maxZ, sector.coord.z),
+            minX: Math.min(acc.minX, system.coord.x),
+            maxX: Math.max(acc.maxX, system.coord.x),
+            minY: Math.min(acc.minY, system.coord.y),
+            maxY: Math.max(acc.maxY, system.coord.y),
+            minZ: Math.min(acc.minZ, system.coord.z),
+            maxZ: Math.max(acc.maxZ, system.coord.z),
           };
         }, {
           minX: Infinity, maxX: -Infinity,
@@ -78,7 +79,7 @@ function UniverseView() {
         <pointLight position={[10, 10, 10]} intensity={1} />
         <Stars radius={300} depth={50} count={5000} factor={4} fade speed={1} />
         
-        <UniverseVisualization sectors={sectors} bounds={bounds} />
+        <UniverseVisualization systems={systems} bounds={bounds} />
         
         <OrbitControls
           enablePan={true}
@@ -115,12 +116,16 @@ function UniverseView() {
         <div className="stats-panel" style={{ top: '80px' }}>
           <h3>Universe Stats</h3>
           <div className="stat-row">
-            <span className="stat-label">Total Sectors:</span>
-            <span className="stat-value">{stats?.totalSectors || 0}</span>
+            <span className="stat-label">Total Systems:</span>
+            <span className="stat-value">{stats?.totalSystems || 0}</span>
           </div>
           <div className="stat-row">
-            <span className="stat-label">Visible Sectors:</span>
-            <span className="stat-value">{sectors.length}</span>
+            <span className="stat-label">Total Players:</span>
+            <span className="stat-value">{stats?.totalPlayers || 0}</span>
+          </div>
+          <div className="stat-row">
+            <span className="stat-label">Visible Systems:</span>
+            <span className="stat-value">{systems.length}</span>
           </div>
           {bounds && (
             <>

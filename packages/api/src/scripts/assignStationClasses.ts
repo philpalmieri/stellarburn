@@ -33,7 +33,7 @@ async function assignStationClasses() {
     const db = client.db('stellarburn');
 
     // Get all sectors with stations
-    const sectors = await db.collection('sectors').find({}).toArray();
+    const sectors = await db.collection('systems').find({}).toArray();
     let totalStations = 0;
     let updatedStations = 0;
 
@@ -60,7 +60,7 @@ async function assignStationClasses() {
 
       // Update the sector if we made changes
       if (hasUpdates) {
-        await db.collection('sectors').updateOne(
+        await db.collection('systems').updateOne(
           { _id: sector._id },
           { $set: { staticObjects: sector.staticObjects } }
         );

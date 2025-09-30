@@ -1,5 +1,5 @@
 import React, { useMemo, useState, useEffect } from 'react';
-import { SectorDocument, Probe } from '@stellarburn/shared';
+import { SystemDocument, Probe } from '@stellarburn/shared';
 
 interface UniverseBounds {
   minX: number;
@@ -21,12 +21,12 @@ interface Player {
 }
 
 interface Props {
-  sectors: SectorDocument[];
+  systems: SystemDocument[];
   bounds: UniverseBounds | null;
 }
 
-function StarSystem({ sector }: { sector: SectorDocument }) {
-  const staticObjects = sector.staticObjects || [];
+function StarSystem({ system }: { system: SystemDocument }) {
+  const staticObjects = system.staticObjects || [];
   const star = staticObjects.find(obj => obj.type === 'star');
   const planets = staticObjects.filter(obj => obj.type === 'planet');
   const stations = staticObjects.filter(obj => obj.type === 'station');
@@ -210,14 +210,14 @@ function Probes() {
   );
 }
 
-export default function UniverseVisualization({ sectors, bounds }: Props) {
+export default function UniverseVisualization({ systems, bounds }: Props) {
   if (!bounds) return null;
 
   return (
     <>
       {/* Star systems with proper scaling */}
-      {sectors.map((sector) => (
-        <StarSystem key={sector._id} sector={sector} />
+      {systems.map((system) => (
+        <StarSystem key={system._id} system={system} />
       ))}
 
       {/* Players - tiny ships */}

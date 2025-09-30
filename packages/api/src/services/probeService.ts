@@ -111,7 +111,7 @@ const executeProbeMovement = async (db: any, probe: Probe) => {
 
       // Add probe to current system's dynamic objects
       const systemCoordString = coordinateToString(probeCoords);
-      await db.collection('sectors').updateOne(
+      await db.collection('systems').updateOne(
         { coordinates: systemCoordString },
         {
           $addToSet: { 'dynamicObjects.probes': probe.id },
@@ -124,7 +124,7 @@ const executeProbeMovement = async (db: any, probe: Probe) => {
       await trackPlayerExploration(db, probe.playerId, probeCoords);
 
       // Perform system scan
-      const systemSector = await db.collection('sectors').findOne({ coordinates: systemCoordString });
+      const system = await db.collection('systems').findOne({ coordinates: systemCoordString });
 
       // Get other players in this system (exclude docked players)
       const systemPlayers = await db.collection('players').find({
@@ -136,7 +136,7 @@ const executeProbeMovement = async (db: any, probe: Probe) => {
 
       const systemScan = {
         systemCoordinates: probeCoords,
-        objects: systemSector ? systemSector.staticObjects : [],
+        objects: system ? system.staticObjects : [],
         otherPlayers: systemPlayers.map((p: any) => ({
           name: p.name,
           coordinates: p.coordinates
@@ -168,7 +168,7 @@ export const destroyProbe = async (db: any, probeId: string) => {
     if (!probe) return;
 
     // Remove probe from all sectors
-    await db.collection('sectors').updateMany(
+    await db.collection('systems').updateMany(
       { 'dynamicObjects.probes': probeId },
       { $pull: { 'dynamicObjects.probes': probeId } }
     );
@@ -232,7 +232,7 @@ export const moveProbeOneStep = async (db: any, probeId: string) => {
 
     // Add probe to current system's dynamic objects
     const systemCoordString = coordinateToString(nextCoords);
-    await db.collection('sectors').updateOne(
+    await db.collection('systems').updateOne(
       { coordinates: systemCoordString },
       {
         $addToSet: { 'dynamicObjects.probes': probeId },
@@ -245,7 +245,7 @@ export const moveProbeOneStep = async (db: any, probeId: string) => {
     await trackPlayerExploration(db, probe.playerId, nextCoords);
 
     // Perform system scan
-    const systemSector = await db.collection('sectors').findOne({ coordinates: systemCoordString });
+    const system = await db.collection('systems').findOne({ coordinates: systemCoordString });
 
     // Get other players in this system (exclude docked players)
     const systemPlayers = await db.collection('players').find({
@@ -257,7 +257,7 @@ export const moveProbeOneStep = async (db: any, probeId: string) => {
 
     const systemScan = {
       systemCoordinates: nextCoords,
-      objects: systemSector ? systemSector.staticObjects : [],
+      objects: system ? system.staticObjects : [],
       otherPlayers: systemPlayers.map((p: any) => ({
         name: p.name,
         coordinates: p.coordinates

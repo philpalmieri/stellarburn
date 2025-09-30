@@ -7,6 +7,7 @@ import { createNavigationRoutes } from './routes/navigationRoutes.js';
 import { createUniverseRoutes } from './routes/universeRoutes.js';
 import { createProbeRoutes } from './routes/probeRoutes.js';
 import { createStationRoutes } from './routes/stationRoutes.js';
+import { createMiningRoutes } from './routes/miningRoutes.js';
 import { getServices } from './services/serviceFactory.js';
 import { buildMongoDBUri } from './config/database.js';
 
@@ -36,6 +37,7 @@ app.use('/api/player', createPlayerRoutes());
 app.use('/api/navigation', createNavigationRoutes());
 app.use('/api/probes', createProbeRoutes());
 app.use('/api/station', createStationRoutes());
+app.use('/api/mining', createMiningRoutes());
 
 // Start server
 async function startServer() {

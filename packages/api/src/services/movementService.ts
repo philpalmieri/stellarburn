@@ -5,8 +5,8 @@ import { performLocalScan, performSystemScan } from './scanningService.js';
 // Helper function for getting system objects
 const getSystemObjects = (db: any) => async (systemCoords: Coordinates3D) => {
   const systemCoordString = coordinateToString(systemCoords);
-  const systemSector = await db.collection('sectors').findOne({ coordinates: systemCoordString });
-  return systemSector?.staticObjects || [];
+  const system = await db.collection('systems').findOne({ coordinates: systemCoordString });
+  return system?.staticObjects || [];
 };
 
 // Functional collision checker using currying
@@ -23,7 +23,7 @@ const checkCollision = (targetCoords: Coordinates3D) => (objects: any[]): { coll
         );
 
         // Define collision radius based on object size (smaller to allow close orbit)
-        let collisionRadius;
+        let collisionRadius = 0.05; // default fallback
         if (obj.type === 'star') {
           if (obj.size === 1) collisionRadius = 0.03;
           else if (obj.size === 9) collisionRadius = 0.08;
@@ -63,15 +63,15 @@ export const movePlayer = async (db: any, playerId: string, direction: string, d
       z: Math.round((player.coordinates.z + directionVector.z) * 10) / 10
     };
 
-    // Validate new coordinates stay within 5x5x5 zone system (0.0-0.4 range per sector)
+    // Validate new coordinates stay within 5x5x5 sector system (0.0-0.4 range per sector)
     const systemX = Math.floor(newCoordinates.x);
     const systemY = Math.floor(newCoordinates.y);
     const systemZ = Math.floor(newCoordinates.z);
-    const zoneX = newCoordinates.x - systemX;
-    const zoneY = newCoordinates.y - systemY;
-    const zoneZ = newCoordinates.z - systemZ;
+    const sectorX = newCoordinates.x - systemX;
+    const sectorY = newCoordinates.y - systemY;
+    const sectorZ = newCoordinates.z - systemZ;
 
-    if (zoneX < 0 || zoneX > 0.4 || zoneY < 0 || zoneY > 0.4 || zoneZ < 0 || zoneZ > 0.4) {
+    if (sectorX < 0 || sectorX > 0.4 || sectorY < 0 || sectorY > 0.4 || sectorZ < 0 || sectorZ > 0.4) {
       throw new Error(`Cannot move ${direction} - would exit system boundary. Use 'jump ${direction}' to travel to the next system.`);
     }
 
@@ -129,7 +129,7 @@ export const jumpPlayer = async (db: any, playerId: string, direction: string, d
       const edgeCoords = getEdgeCoordinates(currentCoords);
       const nearestEdges = edgeCoords.slice(0, 6); // Show first 6 edge options
       const edgeList = nearestEdges.map(coord => coordinateToString(coord)).join(', ');
-      throw new Error(`Cannot jump from the center of a zone. Move to a system edge first. Nearest edges: ${edgeList}`);
+      throw new Error(`Cannot jump from the center of a sector. Move to a system edge first. Nearest edges: ${edgeList}`);
     }
 
     // Use consistent system coordinate calculation (same as navigation service)

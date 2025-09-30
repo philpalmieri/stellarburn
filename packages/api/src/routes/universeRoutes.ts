@@ -8,11 +8,11 @@ export function createUniverseRoutes() {
   router.get('/', async (req, res) => {
     try {
       const db = getMongo('stellarburn');
-      const sectorsCount = await db.collection('sectors').countDocuments();
+      const systemsCount = await db.collection('systems').countDocuments();
       const playersCount = await db.collection('players').countDocuments();
       
       res.json({
-        totalSectors: sectorsCount,
+        totalSystems: systemsCount,
         totalPlayers: playersCount,
         message: 'StellarBurn Universe API is running!'
       });
@@ -22,22 +22,22 @@ export function createUniverseRoutes() {
     }
   });
 
-  // Get sectors
-  router.get('/sectors', async (req, res) => {
+  // Get systems
+  router.get('/systems', async (req, res) => {
     try {
       const db = getMongo('stellarburn');
       const { limit = 5000, skip = 0 } = req.query;
-      
-      const sectors = await db.collection('sectors')
+
+      const systems = await db.collection('systems')
         .find({})
         .limit(Number(limit))
         .skip(Number(skip))
         .toArray();
-      
-      res.json(sectors);
+
+      res.json(systems);
     } catch (error) {
       console.error('Database query error:', error);
-      res.status(500).json({ error: 'Failed to fetch sectors' });
+      res.status(500).json({ error: 'Failed to fetch systems' });
     }
   });
 

@@ -1,5 +1,5 @@
 import fetch from 'node-fetch';
-import { CelestialBody, Coordinates3D, CreatePlayerResponse, PlayerStatusResponse, MovementResult, ProbeResult, Probe } from '@stellarburn/shared';
+import { CelestialBody, Coordinates3D, CreatePlayerResponse, PlayerStatusResponse, MovementResult, ProbeResult, Probe, MiningResult } from '@stellarburn/shared';
 
 const API_BASE = process.env.API_BASE || 'http://localhost:3000/api';
 
@@ -421,5 +421,87 @@ export async function resetPlayer(playerId: string): Promise<any> {
       throw new Error('Cannot connect to API server. Make sure the API is running.');
     }
     throw new Error(error.message || 'Network error during reset');
+  }
+}
+
+// Mining functions
+export async function autoMine(playerId: string): Promise<MiningResult> {
+  try {
+    const response = await fetch(`${API_BASE}/mining/mine/${playerId}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' }
+    });
+
+    if (!response.ok) {
+      const error: any = await response.json();
+      throw new Error(error.message || `Failed to start auto-mining (${response.status})`);
+    }
+    return await response.json() as MiningResult;
+
+  } catch (error: any) {
+    if (error.code === 'ECONNREFUSED') {
+      throw new Error('Cannot connect to API server. Make sure the API is running.');
+    }
+    throw new Error(error.message || 'Network error during auto-mining');
+  }
+}
+
+export async function startMining(playerId: string, asteroidId: string): Promise<MiningResult> {
+  try {
+    const response = await fetch(`${API_BASE}/mining/mine/${asteroidId}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ playerId })
+    });
+
+    if (!response.ok) {
+      const error: any = await response.json();
+      throw new Error(error.message || `Failed to start mining (${response.status})`);
+    }
+
+    return await response.json() as MiningResult;
+  } catch (error: any) {
+    if (error.code === 'ECONNREFUSED') {
+      throw new Error('Cannot connect to API server. Make sure the API is running.');
+    }
+    throw new Error(error.message || 'Network error during mining');
+  }
+}
+
+export async function getMiningStatus(playerId: string): Promise<any> {
+  try {
+    const response = await fetch(`${API_BASE}/mining/status/${playerId}`);
+
+    if (!response.ok) {
+      const error: any = await response.json();
+      throw new Error(error.message || `Failed to get mining status (${response.status})`);
+    }
+
+    return await response.json();
+  } catch (error: any) {
+    if (error.code === 'ECONNREFUSED') {
+      throw new Error('Cannot connect to API server. Make sure the API is running.');
+    }
+    throw new Error(error.message || 'Network error during mining status check');
+  }
+}
+
+export async function cancelMining(playerId: string): Promise<any> {
+  try {
+    const response = await fetch(`${API_BASE}/mining/cancel/${playerId}`, {
+      method: 'POST'
+    });
+
+    if (!response.ok) {
+      const error: any = await response.json();
+      throw new Error(error.message || `Failed to cancel mining (${response.status})`);
+    }
+
+    return await response.json();
+  } catch (error: any) {
+    if (error.code === 'ECONNREFUSED') {
+      throw new Error('Cannot connect to API server. Make sure the API is running.');
+    }
+    throw new Error(error.message || 'Network error during mining cancellation');
   }
 }

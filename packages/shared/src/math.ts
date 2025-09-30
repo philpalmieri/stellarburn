@@ -42,25 +42,25 @@ export const sameSystem = (coord1: Coordinates3D, coord2: Coordinates3D): boolea
 
 export const isWithinSystemBounds = (coord: Coordinates3D): boolean => {
   const systemCoords = getSystemCoords(coord);
-  const zoneX = coord.x - systemCoords.x;
-  const zoneY = coord.y - systemCoords.y;
-  const zoneZ = coord.z - systemCoords.z;
+  const sectorX = coord.x - systemCoords.x;
+  const sectorY = coord.y - systemCoords.y;
+  const sectorZ = coord.z - systemCoords.z;
 
-  return zoneX >= SYSTEM_BOUNDS.MIN && zoneX <= SYSTEM_BOUNDS.MAX &&
-         zoneY >= SYSTEM_BOUNDS.MIN && zoneY <= SYSTEM_BOUNDS.MAX &&
-         zoneZ >= SYSTEM_BOUNDS.MIN && zoneZ <= SYSTEM_BOUNDS.MAX;
+  return sectorX >= SYSTEM_BOUNDS.MIN && sectorX <= SYSTEM_BOUNDS.MAX &&
+         sectorY >= SYSTEM_BOUNDS.MIN && sectorY <= SYSTEM_BOUNDS.MAX &&
+         sectorZ >= SYSTEM_BOUNDS.MIN && sectorZ <= SYSTEM_BOUNDS.MAX;
 };
 
 export const isAtSystemEdge = (coords: Coordinates3D): boolean => {
   const systemX = Math.floor(coords.x);
   const systemY = Math.floor(coords.y);
   const systemZ = Math.floor(coords.z);
-  const zoneX = coords.x - systemX;
-  const zoneY = coords.y - systemY;
-  const zoneZ = coords.z - systemZ;
+  const sectorX = coords.x - systemX;
+  const sectorY = coords.y - systemY;
+  const sectorZ = coords.z - systemZ;
 
   // Player is at edge if any coordinate is at 0.0 or 0.4
-  return zoneX === 0.0 || zoneX === 0.4 || zoneY === 0.0 || zoneY === 0.4 || zoneZ === 0.0 || zoneZ === 0.4;
+  return sectorX === 0.0 || sectorX === 0.4 || sectorY === 0.0 || sectorY === 0.4 || sectorZ === 0.0 || sectorZ === 0.4;
 };
 
 // Distance calculations

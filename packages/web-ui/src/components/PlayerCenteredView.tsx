@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Canvas } from '@react-three/fiber';
 import { OrbitControls, Stars } from '@react-three/drei';
-import { SectorDocument, Probe } from '@stellarburn/shared';
+import { SystemDocument, Probe } from '@stellarburn/shared';
 
 interface Player {
   id: string;
@@ -17,7 +17,7 @@ interface Props {
   playerId: string;
 }
 
-function StarSystem({ sector, playerCoords }: { sector: SectorDocument; playerCoords: any }) {
+function StarSystem({ sector, playerCoords }: { sector: SystemDocument; playerCoords: any }) {
   const staticObjects = sector.staticObjects || [];
 
   return (
@@ -248,7 +248,7 @@ function ExplorationGrid({ playerCoords }: { playerCoords: any }) {
 }
 
 export default function PlayerCenteredView({ playerId }: Props) {
-  const [knownSystems, setKnownSystems] = useState<SectorDocument[]>([]);
+  const [knownSystems, setKnownSystems] = useState<SystemDocument[]>([]);
   const [playerCoords, setPlayerCoords] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 

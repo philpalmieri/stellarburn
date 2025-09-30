@@ -412,7 +412,7 @@ export function createPlayerRoutes() {
 
       if (!system) {
         // Check if the system exists in the universe at all (but don't reveal details!)
-        const universalSystem = await db.collection('sectors').findOne({ coordinates });
+        const universalSystem = await db.collection('systems').findOne({ coordinates });
 
         if (universalSystem) {
           return res.status(403).json({

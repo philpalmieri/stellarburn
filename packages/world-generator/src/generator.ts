@@ -5,9 +5,10 @@ import {
   StarSystem,
   CelestialBody,
   Coordinates3D,
-  SectorDocument,
+  SystemDocument,
   coordinateToString
 } from '@stellarburn/shared';
+import { getRandomAsteroidType } from '@stellarburn/shared';
 
 const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://stellarburn:stellarburn_dev@mongodb:27017/stellarburn?authSource=admin';
 
@@ -77,7 +78,7 @@ function generateRandomCoordinate(size: number): Coordinates3D {
   };
 }
 
-// Fixed sub-coordinate generation for 5x5x5 zones per sector (0.0 to 0.4)
+// Fixed sub-coordinate generation for 5x5x5 sectors per sector (0.0 to 0.4)
 function generateSubCoordinate(baseCoord: number): number {
   const offset = Math.floor(Math.random() * 5) * 0.1; // 0.0, 0.1, 0.2, 0.3, 0.4
   return Math.round((baseCoord + offset) * 10) / 10; // Round to fix floating point
@@ -98,7 +99,7 @@ function selectSystemType(): SystemType {
 }
 
 function generateStarSize(systemType: SystemType): number {
-  // 3 tier star system: 1, 9, or 27 zones
+  // 3 tier star system: 1, 9, or 27 sectors
   const random = Math.random();
 
   switch (systemType.name) {
@@ -120,11 +121,11 @@ function generateStarSize(systemType: SystemType): number {
 }
 
 function generatePlanetSize(starSize: number): number {
-  // 3 tier planet system: 1, 4, or 9 zones
+  // 3 tier planet system: 1, 4, or 9 sectors
   const random = Math.random();
 
   if (starSize === 27) {
-    // Large stars: only small planets (1 zone)
+    // Large stars: only small planets (1 sector)
     return 1;
   } else if (starSize === 9) {
     // Medium stars: small to medium planets
@@ -229,13 +230,21 @@ function generateStarSystem(coordinates: Coordinates3D, systemType: SystemType):
       const asteroidCoord = generateSafeCoordinate(coordinates, starCoordinates, starSize);
 
       if (asteroidCoord) {
+        const asteroidType = getRandomAsteroidType();
         asteroids.push({
           id: `${systemId}_asteroid_${i}`,
           type: 'asteroid',
           coordinates: asteroidCoord,
-          size: 1, // Asteroids are always 1 zone
-          name: `Asteroid ${systemId.slice(-6)}-A${i + 1}`,
-          resources: []
+          size: 1, // Asteroids are always 1 sector
+          name: `${asteroidType.name} ${systemId.slice(-6)}-A${i + 1}`,
+          resources: [],
+          asteroidType,
+          miningProgress: {
+            totalMined: 0,
+            lastMined: new Date(0), // Never mined
+            currentDepletion: 0,
+            activeMiningOperations: []
+          }
         });
       }
     }
@@ -287,7 +296,7 @@ function generateStarSystem(coordinates: Coordinates3D, systemType: SystemType):
         id: `${systemId}_station`,
         type: 'station',
         coordinates: stationCoord,
-        size: 1, // Stations are always 1 zone
+        size: 1, // Stations are always 1 sector
         name: stationName,
         resources: [],
         stationClass,
@@ -360,13 +369,21 @@ function generateCenterSystem(): any {
   ];
 
   asteroidPositions.forEach((coords, i) => {
+    const asteroidType = getRandomAsteroidType();
     asteroids.push({
       id: `${systemId}_asteroid_${i}`,
       type: 'asteroid',
       coordinates: coords,
       size: 1,
-      name: `Central Belt A${i + 1}`,
-      resources: []
+      name: `${asteroidType.name} A${i + 1}`,
+      resources: [],
+      asteroidType,
+      miningProgress: {
+        totalMined: 0,
+        lastMined: new Date(0), // Never mined
+        currentDepletion: 0,
+        activeMiningOperations: []
+      }
     });
   });
 
@@ -406,15 +423,15 @@ export async function generateUniverse(config: UniverseConfig, clearExisting: bo
     console.log('✅ Connected to MongoDB');
 
     const db = client.db('stellarburn');
-    const sectorsCollection = db.collection('sectors');
+    const systemsCollection = db.collection('systems');
 
     if (clearExisting) {
       console.log('🗑️  Clearing existing universe data...');
-      await sectorsCollection.deleteMany({});
+      await systemsCollection.deleteMany({});
     }
 
     // Always generate the center system first
-    console.log('🏛️  Generating center safe zone system...');
+    console.log('🏛️  Generating center safe system...');
     const centerSystem = generateCenterSystem();
     const generatedSystems: any[] = [centerSystem];
     const usedCoordinates = new Set<string>(['0,0,0']);
@@ -457,13 +474,13 @@ export async function generateUniverse(config: UniverseConfig, clearExisting: bo
       }
     }
 
-    await sectorsCollection.insertMany(generatedSystems);
+    await systemsCollection.insertMany(generatedSystems);
 
     console.log('📊 Universe Generation Summary:');
     console.log(`   Total systems generated: ${generatedSystems.length} (including center system)`);
-    console.log(`   Database sectors: ${await sectorsCollection.countDocuments()}`);
+    console.log(`   Database systems: ${await systemsCollection.countDocuments()}`);
     console.log(`   Universe density: ${(config.sparsity * 100).toFixed(2)}%`);
-    console.log(`   Center safe zone created at (0,0,0)`);
+    console.log(`   Center safe system created at (0,0,0)`);
     console.log(`   Fixed coordinate precision for clean display`);
 
   } finally {
