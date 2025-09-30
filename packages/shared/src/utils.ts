@@ -15,16 +15,6 @@ export const stringToCoordinate = (coordString: string): Coordinates3D => {
   return { x, y, z };
 };
 
-export const calculate3DDistance = (
-  coord1: Coordinates3D, 
-  coord2: Coordinates3D
-): number => {
-  const dx = coord2.x - coord1.x;
-  const dy = coord2.y - coord1.y;
-  const dz = coord2.z - coord1.z;
-  return Math.sqrt(dx*dx + dy*dy + dz*dz);
-};
-
 // Get all 6 adjacent coordinates in 3D space
 export const getAdjacentCoordinates = (coord: Coordinates3D): Coordinates3D[] => [
   { ...coord, x: coord.x + 1 },

@@ -2,6 +2,7 @@
 
 import { Command } from 'commander';
 import chalk from 'chalk';
+import { Coordinates3D, getSystemCoords, calculate3DDistance } from '@stellarburn/shared';
 import { createPlayer, getPlayerStatus, movePlayer, scanArea, jumpPlayer, systemScan, plotCourse, autopilot, getKnownSystems, getAllKnownSystems, getSystemDetails, launchProbe, getActiveProbes, findNearest, getNearbyStation, dockAtStation, undockFromStation, getStationInfo, buyFromStation, sellToStation, resetPlayer } from './game.js';
 
 // Reusable display functions for scan results
@@ -101,19 +102,6 @@ function displayLocalScan(scanResult: any) {
 }
 
 // Distance calculation helpers
-interface Coordinates3D {
-  x: number;
-  y: number;
-  z: number;
-}
-
-function getSystemCoords(coord: Coordinates3D): Coordinates3D {
-  return {
-    x: Math.floor(coord.x),
-    y: Math.floor(coord.y),
-    z: Math.floor(coord.z)
-  };
-}
 
 function calculateJumpDistance(from: Coordinates3D, to: Coordinates3D): number {
   const fromSystem = getSystemCoords(from);

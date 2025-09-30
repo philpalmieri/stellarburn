@@ -1,4 +1,16 @@
-import { Coordinates3D, coordinateToString } from '@stellarburn/shared';
+import {
+  Coordinates3D,
+  coordinateToString,
+  parseCoordinates,
+  validateCoordinates,
+  getSystemCoords,
+  formatCoordinates,
+  calculate3DDistance,
+  isWithinSystemBounds,
+  toWithinSystemCoords,
+  sameSystem,
+  SYSTEM_BOUNDS
+} from '@stellarburn/shared';
 
 export interface NavigationStep {
   type: 'move' | 'jump';
@@ -26,79 +38,11 @@ export interface CollisionInfo {
   };
 }
 
-// Helper functions for coordinate manipulation
+// Note: formatCoordinate is still needed locally as it's not exported from shared
 const formatCoordinate = (value: number): number => {
   return Math.round(value * 10) / 10;
 };
 
-const formatCoordinates = (coord: Coordinates3D): Coordinates3D => {
-  return {
-    x: formatCoordinate(coord.x),
-    y: formatCoordinate(coord.y),
-    z: formatCoordinate(coord.z)
-  };
-};
-
-// Parse coordinates from string format
-export const parseCoordinates = (coordStr: string): Coordinates3D => {
-  if (typeof coordStr !== 'string') {
-    throw new Error('Coordinates must be a string');
-  }
-
-  const parts = coordStr.split(',').map(part => {
-    const num = Number(part.trim());
-    if (isNaN(num)) {
-      throw new Error(`Invalid coordinate value: ${part}`);
-    }
-    return num;
-  });
-
-  if (parts.length !== 3) {
-    throw new Error('Coordinates must have exactly 3 values (x,y,z)');
-  }
-
-  return {
-    x: parts[0],
-    y: parts[1],
-    z: parts[2]
-  };
-};
-
-// Validate coordinates object
-const validateCoordinates = (coord: any): coord is Coordinates3D => {
-  return coord &&
-    typeof coord === 'object' &&
-    typeof coord.x === 'number' &&
-    typeof coord.y === 'number' &&
-    typeof coord.z === 'number' &&
-    !isNaN(coord.x) &&
-    !isNaN(coord.y) &&
-    !isNaN(coord.z);
-};
-
-// Calculate 3D distance between coordinates
-const calculate3DDistance = (from: Coordinates3D, to: Coordinates3D): number => {
-  const dx = to.x - from.x;
-  const dy = to.y - from.y;
-  const dz = to.z - from.z;
-  return Math.sqrt(dx * dx + dy * dy + dz * dz);
-};
-
-// Get system coordinates (integer part)
-const getSystemCoords = (coord: Coordinates3D): Coordinates3D => {
-  return {
-    x: Math.floor(coord.x),
-    y: Math.floor(coord.y),
-    z: Math.floor(coord.z)
-  };
-};
-
-// Check if two coordinates are in the same system
-const sameSystem = (coord1: Coordinates3D, coord2: Coordinates3D): boolean => {
-  const sys1 = getSystemCoords(coord1);
-  const sys2 = getSystemCoords(coord2);
-  return sys1.x === sys2.x && sys1.y === sys2.y && sys1.z === sys2.z;
-};
 
 // Check for celestial body collisions
 const checkCelestialCollision = async (db: any, systemCoordString: string, targetCoord: Coordinates3D): Promise<CollisionInfo> => {
@@ -247,15 +191,6 @@ const planSystemJumps = (fromSystem: Coordinates3D, toSystem: Coordinates3D): Na
   return steps;
 };
 
-// Check if a coordinate is within system boundaries
-const isWithinSystemBounds = (coord: Coordinates3D): boolean => {
-  const systemCoords = getSystemCoords(coord);
-  const zoneX = coord.x - systemCoords.x;
-  const zoneY = coord.y - systemCoords.y;
-  const zoneZ = coord.z - systemCoords.z;
-
-  return zoneX >= 0 && zoneX <= 0.4 && zoneY >= 0 && zoneY <= 0.4 && zoneZ >= 0 && zoneZ <= 0.4;
-};
 
 // Check if a coordinate has a collision with obstacles
 const hasCollision = async (db: any, coord: Coordinates3D): Promise<boolean> => {
@@ -573,15 +508,6 @@ const isAtSystemCoordinate = (coord: Coordinates3D, system: Coordinates3D): bool
          Math.abs(coord.z - system.z) < tolerance;
 };
 
-// Convert global coordinates to within-system coordinates (0.0-0.4 range)
-const toWithinSystemCoords = (globalCoord: Coordinates3D): Coordinates3D => {
-  const systemCoords = getSystemCoords(globalCoord);
-  return {
-    x: systemCoords.x + (globalCoord.x - Math.floor(globalCoord.x)),
-    y: systemCoords.y + (globalCoord.y - Math.floor(globalCoord.y)),
-    z: systemCoords.z + (globalCoord.z - Math.floor(globalCoord.z))
-  };
-};
 
 // Main course plotting function
 export const plotCourse = async (db: any, fromStr: string, toStr: string): Promise<NavigationPath> => {

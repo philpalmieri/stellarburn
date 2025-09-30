@@ -1,5 +1,5 @@
 import { StationInventory, TradeItem } from '@stellarburn/shared';
-import { TRADE_ITEMS, getWeightedRandomItems, getItemById, getStationInventory, STATION_TYPES } from '../data/tradeItems.js';
+import { TRADE_ITEMS, getWeightedRandomItems, getItemById, getStationInventory, STATION_TYPES } from '@stellarburn/shared';
 
 // Functional helper for generating prices with market fluctuation
 const generatePrices = (item: TradeItem, stationClass: 'A' | 'B' | 'C' | 'D' | 'E') => {

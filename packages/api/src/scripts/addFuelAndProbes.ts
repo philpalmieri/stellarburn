@@ -1,7 +1,7 @@
 #!/usr/bin/env tsx
 
 import { MongoClient } from 'mongodb';
-import { getItemById } from '../data/tradeItems.js';
+import { getItemById } from '@stellarburn/shared';
 
 const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://stellarburn:stellarburn_dev@mongodb:27017/stellarburn?authSource=admin';
 

@@ -1,54 +1,7 @@
-import { Coordinates3D, coordinateToString, Probe, ProbeConfig } from '@stellarburn/shared';
+import { Coordinates3D, coordinateToString, Probe, ProbeConfig, isAtSystemEdge, getEdgeCoordinates } from '@stellarburn/shared';
 import { trackPlayerExploration } from './explorationService.js';
 
-// Helper function to check if player is at system edge
-const isAtSystemEdge = (coords: Coordinates3D): boolean => {
-    const systemX = Math.floor(coords.x);
-    const systemY = Math.floor(coords.y);
-    const systemZ = Math.floor(coords.z);
-    const zoneX = coords.x - systemX;
-    const zoneY = coords.y - systemY;
-    const zoneZ = coords.z - systemZ;
 
-    // Player is at edge if any coordinate is at 0.0 or 0.4
-    return zoneX === 0.0 || zoneX === 0.4 || zoneY === 0.0 || zoneY === 0.4 || zoneZ === 0.0 || zoneZ === 0.4;
-};
-
-// Helper function to get edge coordinates
-const getEdgeCoordinates = (coords: Coordinates3D): Coordinates3D[] => {
-    const systemX = Math.floor(coords.x);
-    const systemY = Math.floor(coords.y);
-    const systemZ = Math.floor(coords.z);
-
-    const edges = [];
-
-    // Add all edge coordinates (faces of the 5x5x5 cube)
-    for (const x of [0.0, 0.4]) {
-      for (const y of [0.0, 0.1, 0.2, 0.3, 0.4]) {
-        for (const z of [0.0, 0.1, 0.2, 0.3, 0.4]) {
-          edges.push({ x: systemX + x, y: systemY + y, z: systemZ + z });
-        }
-      }
-    }
-
-    for (const y of [0.0, 0.4]) {
-      for (const x of [0.1, 0.2, 0.3]) { // avoid duplicates from previous loop
-        for (const z of [0.0, 0.1, 0.2, 0.3, 0.4]) {
-          edges.push({ x: systemX + x, y: systemY + y, z: systemZ + z });
-        }
-      }
-    }
-
-    for (const z of [0.0, 0.4]) {
-      for (const x of [0.1, 0.2, 0.3]) { // avoid duplicates
-        for (const y of [0.1, 0.2, 0.3]) { // avoid duplicates
-          edges.push({ x: systemX + x, y: systemY + y, z: systemZ + z });
-        }
-      }
-    }
-
-    return edges;
-};
 
 // Launch probe function using functional approach
 export const launchProbe = async (db: any, playerId: string, direction: string) => {

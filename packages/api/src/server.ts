@@ -11,7 +11,7 @@ import { getServices } from './services/serviceFactory.js';
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://stellarburn:stellarburn_dev@mongodb:27017/stellarburn?authSource=admin';
+const MONGODB_URI = process.env.MONGODB_URI;
 
 // Middleware
 app.use(helmet());
@@ -20,10 +20,10 @@ app.use(express.json());
 
 // Basic health check
 app.get('/health', (req, res) => {
-  res.json({ 
-    status: 'ok', 
+  res.json({
+    status: 'ok',
     timestamp: new Date().toISOString(),
-    service: 'StellarBurn API' 
+    service: 'StellarBurn API'
   });
 });
 
@@ -39,7 +39,7 @@ async function startServer() {
   try {
     console.log(`Connecting to MongoDB at: ${MONGODB_URI}`);
     await connectToMongoDB(MONGODB_URI);
-    
+
     app.listen(PORT, () => {
       console.log(`🚀 StellarBurn API server running on port ${PORT}`);
       console.log(`📊 Health check: http://localhost:${PORT}/health`);

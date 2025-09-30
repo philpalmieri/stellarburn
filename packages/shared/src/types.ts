@@ -191,7 +191,7 @@ export interface PlayerStatusResponse {
 export interface TradeItem {
   id: string;
   name: string;
-  category: 'fuel' | 'minerals' | 'technology' | 'weapons' | 'goods' | 'contraband';
+  category: 'fuel' | 'raw_materials' | 'resources' | 'technology' | 'military' | 'luxury' | 'contraband';
   basePrice: number;
   weight: number; // cargo space required
   rarity: 'common' | 'uncommon' | 'rare' | 'legendary';

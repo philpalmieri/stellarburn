@@ -1,27 +1,16 @@
 import { Router } from 'express';
 import { getMongo } from '../services/databaseService.js';
 import { getServices } from '../services/serviceFactory.js';
-import { getItemById } from '../data/tradeItems.js';
-import { DIRECTIONS, getDirectionVector } from '../constants/directions.js';
-import { coordinateToString } from '@stellarburn/shared';
+import { getItemById } from '@stellarburn/shared';
+import { DIRECTIONS, getDirectionVector, coordinateToString, createDistanceCalculator, addDistanceToObject } from '@stellarburn/shared';
 import { performLocalScan, performSystemScan } from '../services/scanningService.js';
 import { getKnownSystems } from '../services/explorationService.js';
 import { findNearestStation, findNearestPlanet, findNearestStar, findNearestPlayer, findNearestProbe } from '../services/nearestService.js';
 import { movePlayer, jumpPlayer } from '../services/movementService.js';
 import { launchProbe, getActiveProbes, getAllProbes } from '../services/probeService.js';
 
-// Functional helper for distance calculations and sorting
-const calculateDistance3D = (from: any) => (to: any): number => {
-  const dx = to.x - from.x;
-  const dy = to.y - from.y;
-  const dz = to.z - from.z;
-  return Math.sqrt(dx * dx + dy * dy + dz * dz);
-};
-
-const addDistanceToObject = (playerCoords: any) => (obj: any) => ({
-  ...obj,
-  distance: calculateDistance3D(playerCoords)(obj.coordinates)
-});
+// Use shared utilities for distance calculations
+const calculateDistance3D = createDistanceCalculator;
 
 const addDistanceToSystem = (playerCoords: any) => (system: any) => {
   const systemDistance = calculateDistance3D(playerCoords)(system.coord);

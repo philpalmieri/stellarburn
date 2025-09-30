@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { getDirectionVector } from '../constants/directions.js';
+import { getDirectionVector } from '@stellarburn/shared';
 import { coordinateToString } from '@stellarburn/shared';
 import { getMongo } from '../services/databaseService.js';
 import { performSystemScan } from '../services/scanningService.js';

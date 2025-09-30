@@ -1,6 +1,6 @@
-import { Coordinates3D, coordinateToString } from '@stellarburn/shared';
+import { Coordinates3D, coordinateToString, getSystemCoords } from '@stellarburn/shared';
 import { trackPlayerExploration } from './explorationService.js';
-import { getItemById } from '../data/tradeItems.js';
+import { getItemById } from '@stellarburn/shared';
 
 // Functional helper functions using currying and higher-order functions
 const createDistanceCalculator = (targetCoords: Coordinates3D) =>
@@ -79,12 +79,6 @@ const enrichStationData = (obj: any) => {
   return obj;
 };
 
-// Helper function to get system coordinates from any coordinates
-const toSystemCoordinates = (coords: Coordinates3D): Coordinates3D => ({
-  x: Math.floor(coords.x),
-  y: Math.floor(coords.y),
-  z: Math.floor(coords.z)
-});
 
 // Perform a system-wide scan for a player
 export const performSystemScan = async (db: any, playerId: string) => {
@@ -94,7 +88,7 @@ export const performSystemScan = async (db: any, playerId: string) => {
   }
 
   const currentCoords = player.coordinates;
-  const systemCoords = toSystemCoordinates(currentCoords);
+  const systemCoords = getSystemCoords(currentCoords);
 
   // Track exploration automatically
   await trackPlayerExploration(db, playerId, currentCoords);
@@ -148,7 +142,7 @@ export const performLocalScan = async (db: any, playerId: string) => {
   await trackPlayerExploration(db, playerId, player.coordinates);
 
   const currentCoords = player.coordinates;
-  const systemCoords = toSystemCoordinates(currentCoords);
+  const systemCoords = getSystemCoords(currentCoords);
 
   // Get system data for object detection
   const systemCoordString = coordinateToString(systemCoords);

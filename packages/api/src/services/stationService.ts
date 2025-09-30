@@ -1,5 +1,5 @@
-import { Coordinates3D, CelestialBody, StationInventory, TradeItem, CargoItem } from '@stellarburn/shared';
-import { getItemById } from '../data/tradeItems.js';
+import { Coordinates3D, CelestialBody, StationInventory, TradeItem, CargoItem, calculate3DDistance } from '@stellarburn/shared';
+import { getItemById } from '@stellarburn/shared';
 
 // Functional helpers for station operations
 const isInDockingRange = (playerCoords: Coordinates3D) => (stationCoords: Coordinates3D): boolean => {
@@ -16,13 +16,8 @@ const canAffordItem = (playerCredits: number) => (itemPrice: number) => (quantit
 const hasCargoSpace = (currentWeight: number) => (maxWeight: number) => (itemWeight: number) => (quantity: number): boolean =>
   currentWeight + (itemWeight * quantity) <= maxWeight;
 
-// Helper function to calculate distance between coordinates
-const calculateDistance = (from: Coordinates3D, to: Coordinates3D): number => {
-  const dx = to.x - from.x;
-  const dy = to.y - from.y;
-  const dz = to.z - from.z;
-  return Math.sqrt(dx * dx + dy * dy + dz * dz);
-};
+// Use shared calculateDistance function
+const calculateDistance = calculate3DDistance;
 
 // Find station by ID across all sectors
 export const findStationById = async (db: any, stationId: string): Promise<CelestialBody | null> => {

@@ -1,18 +1,9 @@
-import { Coordinates3D, coordinateToString } from '@stellarburn/shared';
+import { Coordinates3D, coordinateToString, createDistanceCalculator, addDistanceToObject } from '@stellarburn/shared';
 import { getKnownSystems } from './explorationService.js';
 
-// Functional utilities for distance and nearest calculations
-const calculateDistance3D = (from: Coordinates3D) => (to: Coordinates3D): number => {
-  const dx = to.x - from.x;
-  const dy = to.y - from.y;
-  const dz = to.z - from.z;
-  return Math.sqrt(dx * dx + dy * dy + dz * dz);
-};
-
-const createEntityWithDistance = (fromCoords: Coordinates3D) => (entity: any) => ({
-  ...entity,
-  distance: calculateDistance3D(fromCoords)(entity.coordinates)
-});
+// Use shared utilities for distance calculations
+const calculateDistance3D = createDistanceCalculator;
+const createEntityWithDistance = addDistanceToObject;
 
 const sortByDistance = (entities: any[]) =>
   entities.sort((a, b) => a.distance - b.distance);

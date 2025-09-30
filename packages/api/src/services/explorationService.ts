@@ -1,15 +1,9 @@
-import { Coordinates3D, coordinateToString } from '@stellarburn/shared';
+import { Coordinates3D, coordinateToString, getSystemCoords } from '@stellarburn/shared';
 
-// Helper function to convert coordinates to system coordinates
-const toSystemCoordinates = (coordinates: Coordinates3D): Coordinates3D => ({
-  x: Math.floor(coordinates.x),
-  y: Math.floor(coordinates.y),
-  z: Math.floor(coordinates.z)
-});
 
 // Track player exploration by adding system to known systems
 export const trackPlayerExploration = async (db: any, playerId: string, coordinates: Coordinates3D): Promise<void> => {
-  const systemCoords = toSystemCoordinates(coordinates);
+  const systemCoords = getSystemCoords(coordinates);
   const systemCoordString = coordinateToString(systemCoords);
 
   await db.collection('players').updateOne(
