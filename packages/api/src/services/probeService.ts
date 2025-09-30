@@ -9,6 +9,53 @@ export class ProbeService {
     private explorationService: ExplorationService
   ) {}
 
+  private isAtSystemEdge(coords: Coordinates3D): boolean {
+    const systemX = Math.floor(coords.x);
+    const systemY = Math.floor(coords.y);
+    const systemZ = Math.floor(coords.z);
+    const zoneX = coords.x - systemX;
+    const zoneY = coords.y - systemY;
+    const zoneZ = coords.z - systemZ;
+
+    // Player is at edge if any coordinate is at 0.0 or 0.4
+    return zoneX === 0.0 || zoneX === 0.4 || zoneY === 0.0 || zoneY === 0.4 || zoneZ === 0.0 || zoneZ === 0.4;
+  }
+
+  private getEdgeCoordinates(coords: Coordinates3D): Coordinates3D[] {
+    const systemX = Math.floor(coords.x);
+    const systemY = Math.floor(coords.y);
+    const systemZ = Math.floor(coords.z);
+
+    const edges = [];
+
+    // Add all edge coordinates (faces of the 5x5x5 cube)
+    for (const x of [0.0, 0.4]) {
+      for (const y of [0.0, 0.1, 0.2, 0.3, 0.4]) {
+        for (const z of [0.0, 0.1, 0.2, 0.3, 0.4]) {
+          edges.push({ x: systemX + x, y: systemY + y, z: systemZ + z });
+        }
+      }
+    }
+
+    for (const y of [0.0, 0.4]) {
+      for (const x of [0.1, 0.2, 0.3]) { // avoid duplicates from previous loop
+        for (const z of [0.0, 0.1, 0.2, 0.3, 0.4]) {
+          edges.push({ x: systemX + x, y: systemY + y, z: systemZ + z });
+        }
+      }
+    }
+
+    for (const z of [0.0, 0.4]) {
+      for (const x of [0.1, 0.2, 0.3]) { // avoid duplicates
+        for (const y of [0.1, 0.2, 0.3]) { // avoid duplicates
+          edges.push({ x: systemX + x, y: systemY + y, z: systemZ + z });
+        }
+      }
+    }
+
+    return edges;
+  }
+
   async launchProbe(playerId: string, direction: string) {
     const player = await this.db.collection('players').findOne({ id: playerId });
 
@@ -40,6 +87,8 @@ export class ProbeService {
     if (!directionVector) {
       throw new Error('Invalid direction. Use n/north, s/south, e/east, w/west, u/up, d/down');
     }
+
+    // Probes are too small for gravity to matter - they can launch from anywhere
 
     // Get probe config from player or use defaults
     const probeConfig = player.ship.probeConfig || {
@@ -207,7 +256,7 @@ export class ProbeService {
       return null;
     }
 
-    // Calculate next position
+    // Calculate next position - probes jump directly between systems
     const nextCoords = {
       x: Math.floor(probe.coordinates.x) + probe.direction.x,
       y: Math.floor(probe.coordinates.y) + probe.direction.y,

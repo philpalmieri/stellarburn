@@ -152,33 +152,34 @@ export class NavigationService {
     }
 
     for (const obj of systemSector.staticObjects) {
-      const distance = this.calculate3DDistance(targetCoord, obj.coordinates);
+      // Only check collision for stars (any size) and large planets (size 4+)
+      // Size 1 objects (small planets, asteroids, stations) don't prevent movement
+      if (obj.type === 'star' || (obj.type === 'planet' && obj.size >= 4)) {
+        const distance = this.calculate3DDistance(targetCoord, obj.coordinates);
 
-      // Use a much smaller collision radius - only collision if very close to object center
-      // This allows navigation around objects without requiring complex pathfinding
-      let collisionRadius;
+        // Use a much smaller collision radius - only collision if very close to object center
+        // This allows navigation around objects without requiring complex pathfinding
+        let collisionRadius;
 
-      if (obj.type === 'star') {
-        // Stars are dangerous - larger collision radius but still reasonable
-        collisionRadius = Math.min(Math.sqrt(obj.size) * 0.05, 0.3);
-      } else if (obj.type === 'station') {
-        // Stations you might want to dock with - very small radius
-        collisionRadius = 0.05;
-      } else {
-        // Planets, asteroids - medium collision radius
-        collisionRadius = Math.min(Math.sqrt(obj.size) * 0.03, 0.2);
-      }
+        if (obj.type === 'star') {
+          // Stars are dangerous - larger collision radius but still reasonable
+          collisionRadius = Math.min(Math.sqrt(obj.size) * 0.05, 0.3);
+        } else if (obj.type === 'planet' && obj.size >= 4) {
+          // Large planets - medium collision radius
+          collisionRadius = Math.min(Math.sqrt(obj.size) * 0.03, 0.2);
+        }
 
-      if (distance < collisionRadius) {
-        return {
-          hasCollision: true,
-          obstruction: {
-            type: obj.type,
-            name: obj.name,
-            size: obj.size,
-            coordinates: obj.coordinates
-          }
-        };
+        if (distance < collisionRadius) {
+          return {
+            hasCollision: true,
+            obstruction: {
+              type: obj.type,
+              name: obj.name,
+              size: obj.size,
+              coordinates: obj.coordinates
+            }
+          };
+        }
       }
     }
     

@@ -71,10 +71,12 @@ function displayAdjacentZones(adjacentZones: any) {
       if (objectCount > 0) {
         const hasStation = zone.objects.some((obj: any) => obj.type === 'station');
         const hasStar = zone.objects.some((obj: any) => obj.type === 'star');
+        const hasPlanet = zone.objects.some((obj: any) => obj.type === 'planet');
 
         if (hasStation) statusParts.push(chalk.cyan('station'));
         else if (hasStar) statusParts.push(chalk.red('star system'));
-        else statusParts.push(chalk.green(`${objectCount} objects`));
+        else if (hasPlanet) statusParts.push(chalk.green('planet'));
+        else statusParts.push(chalk.gray(`${objectCount} objects`));
       }
 
       if (playerCount > 0) {

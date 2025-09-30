@@ -191,7 +191,7 @@ export class ScanningService {
     for (const [direction, coords] of Object.entries(adjacentCoords)) {
       adjacentZones[direction] = {
         coordinates: coords,
-        objects: findObjectsInSystemSector(coords)(0.05).map(enrichStationData),
+        objects: findObjectsInSystemSector(coords)(0.08).map(enrichStationData),
         otherPlayers: await findPlayersExcludingCurrent(coords)(0.08), // Larger range to detect entities in adjacent zones
         probes: await findActiveProbes(coords)(0.08)
       };
