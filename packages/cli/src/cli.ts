@@ -444,6 +444,11 @@ program
           console.log(chalk.yellow(`  mine             - Mine nearest asteroid`));
           console.log(chalk.yellow(`  mining           - Check mining operation status`));
           console.log(chalk.magenta(`  reset            - Reset fuel and probes (admin)`));
+          console.log(chalk.green(`\n  === NPC Commands ===`));
+          console.log(chalk.green(`  npcs/npc         - Show NPC status`));
+          console.log(chalk.green(`  spawn <type> [count] [maxOperations] - Spawn NPCs (type: miner)`));
+          console.log(chalk.green(`  cleanup          - Remove completed NPCs`));
+          console.log(chalk.green(`  stopnpcs         - Stop all running NPCs`));
           console.log(chalk.blue(`\nTip: Use quotes around coordinates like "1,2,3"`));
       }
     } catch (error: any) {
@@ -1176,5 +1181,6 @@ async function miningStatusCommand(playerId: string) {
     console.log(chalk.red(`✗ ${error.message}`));
   }
 }
+
 
 program.parse();

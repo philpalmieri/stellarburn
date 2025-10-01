@@ -1,0 +1,27 @@
+{
+  "name": "@stellarburn/npc-service",
+  "version": "1.0.0",
+  "description": "Autonomous NPC service for StellarBurn",
+  "type": "module",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "dev": "nodemon --watch src --exec 'npm run build && node dist/index.js'",
+    "start": "node dist/index.js",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@stellarburn/shared": "file:../shared",
+    "express": "^4.18.2",
+    "node-fetch": "^3.3.2",
+    "uuid": "^9.0.0",
+    "dotenv": "^16.3.1"
+  },
+  "devDependencies": {
+    "@types/express": "^4.17.17",
+    "@types/node": "^20.5.0",
+    "@types/uuid": "^9.0.2",
+    "nodemon": "^3.0.1",
+    "typescript": "^5.1.6"
+  }
+}

@@ -2,6 +2,7 @@ import fetch from 'node-fetch';
 import { CelestialBody, Coordinates3D, CreatePlayerResponse, PlayerStatusResponse, MovementResult, ProbeResult, Probe, MiningResult } from '@stellarburn/shared';
 
 const API_BASE = process.env.API_BASE || 'http://localhost:3000/api';
+const NPC_SERVICE_BASE = process.env.NPC_SERVICE_BASE || 'http://localhost:3002';
 
 export async function testConnection(): Promise<boolean> {
   try {
@@ -503,5 +504,126 @@ export async function cancelMining(playerId: string): Promise<any> {
       throw new Error('Cannot connect to API server. Make sure the API is running.');
     }
     throw new Error(error.message || 'Network error during mining cancellation');
+  }
+}
+
+// NPC Management functions
+export async function spawnMinerNPC(name?: string, maxOperations?: number): Promise<any> {
+  try {
+    const response = await fetch(`${NPC_SERVICE_BASE}/npcs/spawn/miner`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, maxOperations })
+    });
+
+    if (!response.ok) {
+      const error: any = await response.json();
+      throw new Error(error.error || `Failed to spawn NPC (${response.status})`);
+    }
+
+    return await response.json();
+  } catch (error: any) {
+    if (error.code === 'ECONNREFUSED') {
+      throw new Error('Cannot connect to NPC service. Make sure the NPC service is running.');
+    }
+    throw new Error(error.message || 'Network error during NPC spawn');
+  }
+}
+
+export async function spawnMultipleMiners(count: number, maxOperations?: number): Promise<any> {
+  try {
+    const response = await fetch(`${NPC_SERVICE_BASE}/npcs/spawn/miners`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ count, maxOperations })
+    });
+
+    if (!response.ok) {
+      const error: any = await response.json();
+      throw new Error(error.error || `Failed to spawn NPCs (${response.status})`);
+    }
+
+    return await response.json();
+  } catch (error: any) {
+    if (error.code === 'ECONNREFUSED') {
+      throw new Error('Cannot connect to NPC service. Make sure the NPC service is running.');
+    }
+    throw new Error(error.message || 'Network error during NPCs spawn');
+  }
+}
+
+export async function getActiveNPCs(): Promise<any> {
+  try {
+    const response = await fetch(`${NPC_SERVICE_BASE}/npcs/active`);
+
+    if (!response.ok) {
+      const error: any = await response.json();
+      throw new Error(error.error || `Failed to get active NPCs (${response.status})`);
+    }
+
+    return await response.json();
+  } catch (error: any) {
+    if (error.code === 'ECONNREFUSED') {
+      throw new Error('Cannot connect to NPC service. Make sure the NPC service is running.');
+    }
+    throw new Error(error.message || 'Network error getting active NPCs');
+  }
+}
+
+export async function getNPCStats(): Promise<any> {
+  try {
+    const response = await fetch(`${NPC_SERVICE_BASE}/npcs/stats`);
+
+    if (!response.ok) {
+      const error: any = await response.json();
+      throw new Error(error.error || `Failed to get NPC stats (${response.status})`);
+    }
+
+    return await response.json();
+  } catch (error: any) {
+    if (error.code === 'ECONNREFUSED') {
+      throw new Error('Cannot connect to NPC service. Make sure the NPC service is running.');
+    }
+    throw new Error(error.message || 'Network error getting NPC stats');
+  }
+}
+
+export async function cleanupCompletedNPCs(): Promise<any> {
+  try {
+    const response = await fetch(`${NPC_SERVICE_BASE}/npcs/cleanup`, {
+      method: 'POST'
+    });
+
+    if (!response.ok) {
+      const error: any = await response.json();
+      throw new Error(error.error || `Failed to cleanup NPCs (${response.status})`);
+    }
+
+    return await response.json();
+  } catch (error: any) {
+    if (error.code === 'ECONNREFUSED') {
+      throw new Error('Cannot connect to NPC service. Make sure the NPC service is running.');
+    }
+    throw new Error(error.message || 'Network error during NPC cleanup');
+  }
+}
+
+export async function stopAllNPCs(): Promise<any> {
+  try {
+    const response = await fetch(`${NPC_SERVICE_BASE}/npcs/stop-all`, {
+      method: 'POST'
+    });
+
+    if (!response.ok) {
+      const error: any = await response.json();
+      throw new Error(error.error || `Failed to stop NPCs (${response.status})`);
+    }
+
+    return await response.json();
+  } catch (error: any) {
+    if (error.code === 'ECONNREFUSED') {
+      throw new Error('Cannot connect to NPC service. Make sure the NPC service is running.');
+    }
+    throw new Error(error.message || 'Network error stopping NPCs');
   }
 }

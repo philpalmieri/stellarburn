@@ -57,7 +57,30 @@ services:
       - stellarburn-network
     profiles:
       - tools  # Only start with --profile tools
-# React Web UI
+
+  # NPC Service
+  npc-service:
+    build:
+      context: .
+      dockerfile: docker/node/Dockerfile
+    container_name: stellarburn-npc-service
+    restart: unless-stopped
+    environment:
+      NODE_ENV: development
+      API_BASE: http://api:3000/api
+      NPC_SERVICE_PORT: 3002
+    ports:
+      - "3002:3002"  # NPC Service
+    volumes:
+      - .:/app
+      - /app/node_modules
+    depends_on:
+      - api
+    networks:
+      - stellarburn-network
+    command: npm run dev --workspace=packages/npc-service
+
+  # React Web UI
   web-ui:
     build:
       context: .
@@ -77,7 +100,7 @@ services:
       - stellarburn-network
     command: npm run dev --workspace=packages/web-ui
 
-# CLI Game Client
+  # CLI Game Client
   cli:
     build:
       context: .
