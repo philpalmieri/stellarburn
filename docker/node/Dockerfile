@@ -20,6 +20,9 @@ RUN npm ci
 # Copy the rest of the application
 COPY . .
 
+# Build shared package (required by other workspaces)
+RUN npm run build --workspace=packages/shared
+
 # Change ownership to nodejs user  
 RUN chown -R nodejs:nodejs /app
 USER nodejs
