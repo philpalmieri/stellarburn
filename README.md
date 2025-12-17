@@ -2,7 +2,11 @@
 
 A 3D space exploration and trading game built with Node.js, MongoDB, and Docker. Navigate a procedurally generated universe, mine asteroids, trade at stations, and manage autonomous NPC miners.
 
-**Live at:** [stellarburn.com](https://stellarburn.com)
+## AI Note
+This is a playground vibe coded with Claude, do not trust it :) 
+
+
+**Live at:** [stellarburn.com](https://stellarburn.com) (Not actually live now)
 
 ## Architecture
 
